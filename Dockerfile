@@ -20,5 +20,7 @@ COPY . /app/
 # Expose port 5000 for the Flask app
 EXPOSE 5000
 
+RUN python precompute_vectorstore.py
+
 # Command to run the application using Gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "240", "app:app"]

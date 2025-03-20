@@ -5,7 +5,7 @@ from langchain.callbacks.tracers import LangChainTracer
 from langchain.callbacks.manager import CallbackManager
 from config import (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_VERSION, 
                     AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, 
-                    TEMPERATURE, MAX_TOKENS, PDF_DIR, MAX_TOKENS_THRESHOLD, PROJECT_NAME)
+                    TEMPERATURE, MAX_TOKENS, PDF_DIR, MAX_TOKENS_THRESHOLD, PROJECT_NAME, PERSIST_DIRECTORY)
 from langchain_utils.vectorstore import initialize_faiss_vectorstore, embeddings
 from document_processing.pdf_extractor import extract_documents_from_pdf
 from document_processing.parser import LegalDocumentParser
@@ -57,12 +57,15 @@ def load_all_documents(pdf_directory):
     return all_documents
 
 def initialize_app():
-    """
-    Load documents from PDFs, initialize the vectorstore, and set up the QA chain.
-    """
-    global qa_chain
-    documents = load_all_documents(PDF_DIR)
-    print(f"Created {len(documents)} documents from PDFs in '{PDF_DIR}'")
-    vectorstore = initialize_faiss_vectorstore(documents)
+    global vectorstore, qa_chain
+    if os.path.exists(PERSIST_DIRECTORY):
+        print("Loading precomputed FAISS vectorstore...")
+        # Pass an empty list for documents, assuming the vectorstore loader in your utility
+        # simply loads from disk when files are present.
+        vectorstore = initialize_faiss_vectorstore([], persist_directory=PERSIST_DIRECTORY)
+    else:
+        print("Precomputed vectorstore not found; building from scratch...")
+        documents = load_all_documents(PDF_DIR)
+        vectorstore = initialize_faiss_vectorstore(documents, persist_directory=PERSIST_DIRECTORY)
     qa_chain = setup_qa_chain(vectorstore)
     print("QA chain initialized")
