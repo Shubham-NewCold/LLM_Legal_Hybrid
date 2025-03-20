@@ -1,0 +1,68 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment directories (if using venv)
+env/
+venv/
+
+# Conda environments (if stored locally)
+*.conda
+*.env
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Flask specific
+instance/
+.webassets-cache
+
+# Editor / IDE files
+.vscode/
+.idea/
+
+# Environment variables and sensitive information
+.env
+
+# FAISS vectorstore persistence (if auto-generated, not needed in VCS)
+faiss_db/
+
+# OS-specific files
+.DS_Store
+Thumbs.db

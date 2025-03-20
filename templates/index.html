@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NewCold Legal Support Chatbot</title>
+    <style>
+        :root {
+            --background-color: #FFFFFF;
+            --text-color: #1A1A1A;
+            --border-color: #E5E5E5;
+            --input-background: #FFFFFF;
+            --button-color: #5E44FF;
+            --button-hover: #4B37CC;
+            --human-background: #F8F8F8;
+            --assistant-background: #FFFFFF;
+            --code-background: #F8F8F8;
+            --welcome-background: #F0F4FF;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 120px;
+        }
+        .welcome-container {
+            padding: 48px 20%;
+            background-color: var(--welcome-background);
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .welcome-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .welcome-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-color);
+            margin-bottom: 16px;
+        }
+        .welcome-subtitle {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+        .welcome-features {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-top: 32px;
+        }
+        .feature-item {
+            flex: 1;
+            max-width: 240px;
+            padding: 24px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .feature-icon {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: var(--button-color);
+        }
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .feature-description {
+            font-size: 14px;
+            color: #666;
+        }
+        .message-wrapper {
+            padding: 0 20%;
+            border-bottom: 1px solid var(--border-color);
+        }
+        @media (max-width: 1024px) {
+            .message-wrapper, .welcome-container {
+                padding: 24px 5%;
+            }
+            .welcome-features {
+                flex-direction: column;
+                align-items: center;
+            }
+            .feature-item {
+                width: 100%;
+                max-width: none;
+            }
+        }
+        .message {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px 0;
+        }
+        .human-message {
+            background-color: var(--human-background);
+        }
+        .assistant-message {
+            background-color: var(--assistant-background);
+        }
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 24px 20%;
+            background-color: var(--background-color);
+            border-top: 1px solid var(--border-color);
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            position: relative;
+        }
+        .query-box {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--text-color);
+            background-color: var(--input-background);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            resize: none;
+            max-height: 200px;
+            outline: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        }
+        .query-box:focus {
+            border-color: var(--button-color);
+            box-shadow: 0 0 0 2px rgba(94, 68, 255, 0.1);
+        }
+        .submit-button {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            background-color: var(--button-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .submit-button:hover {
+            background-color: var(--button-hover);
+        }
+        .message-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .source-info {
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
+            border-top: 1px dashed #ccc;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        {% if not answer %}
+        <div class="welcome-container">
+            <div class="welcome-content">
+                <h1 class="welcome-title">Welcome to NewCold Legal Support</h1>
+                <p class="welcome-subtitle">Your AI-powered assistant for legal queries and document analysis. How can I help you today?</p>
+                <div class="welcome-features">
+                    <div class="feature-item">
+                        <div class="feature-icon">📋</div>
+                        <div class="feature-title">Document Analysis</div>
+                        <div class="feature-description">Get instant insights on legal documents and agreements</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">⚖️</div>
+                        <div class="feature-title">Legal Guidance</div>
+                        <div class="feature-description">Clear explanations of legal terms and concepts</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">🔍</div>
+                        <div class="feature-title">Quick Answers</div>
+                        <div class="feature-description">Fast responses to your legal queries</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if answer %}
+        <!-- Human Message -->
+        <div class="message-wrapper human-message">
+            <div class="message">
+                <div class="message-label">Human</div>
+                <p>{{ query }}</p>
+            </div>
+        </div>
+        <!-- Final Answer -->
+        <div class="message-wrapper assistant-message">
+            <div class="message">
+                <div class="message-label">NewCold Assistant</div>
+                <p>{{ answer|safe }}</p>
+                {% if sources %}
+                <div class="source-info">
+                    <strong>Sources:</strong>
+                    <ul>
+                    {% for src in sources %}
+                        <li>{{ src }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="input-container">
+        <form method="POST" action="/">
+            <textarea 
+                id="query" 
+                name="query" 
+                rows="1" 
+                class="query-box" 
+                placeholder="Ask anything about NewCold legal queries..."
+                oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';"
+            >{{ query }}</textarea>
+            <button type="submit" class="submit-button">Send</button>
+        </form>
+    </div>
+</body>
+</html>
