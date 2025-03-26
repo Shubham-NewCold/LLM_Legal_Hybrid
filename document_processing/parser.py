@@ -4,6 +4,7 @@ from pyparsing import (
     ParseException, ParserElement
 )
 from langchain_core.documents import Document
+from config import CHUNK_MAX_TOKENS, OVERLAP_RATIO  # Import tunable parameters
 
 # Configure pyparsing defaults
 ParserElement.setDefaultWhitespaceChars(" \t")
@@ -11,23 +12,26 @@ ParserElement.setDefaultWhitespaceChars(" \t")
 # Define pyparsing grammar components
 roman_nums = Word("IVXLCDM")
 
-def is_valid_clause(clause_num, title):
+def is_valid_clause(clause_num, title, min_clause_num=1, max_clause_num=44):
     """
     Return True if the clause number and title appear to be valid.
     Requires that the clause number is a number (or number with a dot)
     and falls within an expected range (e.g., 1 to 44),
     and that the title has at least 3 words.
     """
-    if not re.match(r'^\d+(\.\d+)?$', clause_num):
+    # Why do we expect a number or a number with 1 dot? Why not multiple dots? Or what about clauses like 1.1.1a?
+    if not re.match(r'^\d+(?:\.\d+)*(?:[a-zA-Z])?$', clause_num):
+        # Also what if a clause is reference inside the text like "as per clause 1"? We need to find a way to match that.
         return False
     try:
         num = float(clause_num)
-        if num < 1 or num > 44:  # Adjust as needed
+        if num < min_clause_num or num > max_clause_num:  # Adjust as needed
             return False
     except ValueError:
         return False
-    if len(title.split()) < 3:
-        return False
+    # kindly explain the logic if you want to comment back in
+    # if len(title.split()) < 3:
+    #     return False
     return True
 
 # Header expression: captures a clause number and a title.
@@ -53,7 +57,7 @@ def is_spurious_line(line):
     stripped = line.strip()
     return re.fullmatch(r'\d+', stripped) is not None or len(stripped.split()) < 2
 
-def extend_title_if_incomplete(title, next_line):
+def extend_title_if_incomplete(title, next_line, next_line_words=10):
     """
     If the header title ends with a conjunction, comma, or open parenthesis,
     extend it using up to 10 words from the next line.
@@ -61,7 +65,7 @@ def extend_title_if_incomplete(title, next_line):
     incomplete_endings = ("or", "and", "but", "for", "nor", "yet", ",", "(")
     words = title.split()
     if words and words[-1].lower() in incomplete_endings:
-        extra_words = next_line.split()[:10]
+        extra_words = next_line.split()[:next_line_words]
         title += " " + " ".join(extra_words)
     return title
 
@@ -77,7 +81,7 @@ def enrich_title_if_short(title, lines, start_index, target_word_count=10, max_e
     # Only add extra text if the next line is not header-like.
     while word_count < target_word_count and idx < len(lines) and extra_lines_used < max_extra_lines:
         next_line = lines[idx].strip()
-        if next_line and not is_spurious_line(next_line) and not new_header_re.match(next_line):
+        if next_line and not is_spurious_line(next_line) and not new_header_re.match(next_line):    # This condition is quite dodgy. What if the next line is a header or a spurious line like at the end of a pdf page?
             title += " " + next_line
             word_count = len(title.split())
             extra_lines_used += 1
@@ -90,7 +94,7 @@ def clean_trailing_punctuation(title):
     """
     Remove trailing punctuation like commas, semicolons, or colons from the title.
     """
-    return title.rstrip(" ,;:")
+    return title.rstrip(" ,;:")     
 
 # Improved regex: require a word boundary after the clause number.
 new_header_re = re.compile(r'^\d+(\.\d+)?\b')
@@ -130,6 +134,7 @@ def pyparse_hierarchical_chunk_text(full_text, source_name, page_number=None, ex
         return sum(len(line.split()) for line in current_chunk_lines)
 
     # Thresholds (adjust as needed)
+    # Either put these in config or put as arguments to the function, do NOT hardcode where it can be avoided
     MIN_TITLE_WORDS = 10         # Minimum words desired for a complete header title
     MAX_HEADER_TITLE_WORDS = 40  # Maximum words to keep in the clause title
 
@@ -190,7 +195,6 @@ def pyparse_hierarchical_chunk_text(full_text, source_name, page_number=None, ex
             i += 1
 
         # Check if current chunk exceeds maximum tokens.
-        from config import CHUNK_MAX_TOKENS, OVERLAP_RATIO  # Import tunable parameters
         if current_token_count() > CHUNK_MAX_TOKENS:
             overlap_count = int(len(current_chunk_lines) * OVERLAP_RATIO)
             overlap_count = max(overlap_count, 1)
@@ -221,6 +225,7 @@ def build_reference_map(doc_text, current_location=""):
     return reference_graph
 
 # --- Financial Formula Handling ---
+# Very dodgy way to define a formula pattern. What if the formula is written in a different way? Or has different numbers even?!
 formula_pattern = r'\\text{Balancing Payment} = \\left\(\\frac{A}{B} \\times \$2,600,000\\right\) - \$2,600,000'
 
 def parse_formula(formula_str):
@@ -235,7 +240,7 @@ def parse_formula(formula_str):
 class LegalDocumentParser:
     def __init__(self):
         self.hierarchy_parser = self.parse_hierarchy
-        self.financial_parser = self.extract_financials
+        self.financial_parser = self.extract_financials     # Where do you use financial and reference parsers?
         self.reference_builder = self.build_references
 
     def parse_hierarchy(self, text, source_name, page_number, extra_metadata=None):
