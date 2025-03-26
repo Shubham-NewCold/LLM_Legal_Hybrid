@@ -21,3 +21,5 @@ When processing a query, please adhere to the following guidelines:
 
 Ensure you think carefully and provide thorough reasoning to deliver high-quality, reliable answers based solely on the content of the legal agreements.
 """
+
+# This is nice but you can ask it to reason about the query and the context. That will automatically improve performance.

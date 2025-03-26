@@ -12,7 +12,7 @@ def precompute():
         # Process all PDFs to create Document objects
         documents = load_all_documents(PDF_DIR)
         # Build the FAISS vectorstore and save it locally
-        vectorstore = initialize_faiss_vectorstore(documents, persist_directory=PERSIST_DIRECTORY)
+        initialize_faiss_vectorstore(documents, persist_directory=PERSIST_DIRECTORY)
         print("Vectorstore precomputed and saved.")
 
 if __name__ == "__main__":
