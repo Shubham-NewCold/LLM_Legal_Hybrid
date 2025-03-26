@@ -10,7 +10,7 @@ def extract_documents_from_pdf(pdf_path):
     if "lactalis" in file_name.lower():
         customer = "Lactalis Australia"
         region = "Australia"
-    elif "patties" in file_name.lower():
+    elif "patties" in file_name.lower():    # What if there are two files with patties in the name? Again hard coding is very very risky
         customer = "Patties Foods Pty Ltd"
         region = "Australia"
     elif "simplot" in file_name.lower():
@@ -24,7 +24,9 @@ def extract_documents_from_pdf(pdf_path):
         region = "Unknown Region"
 
     # Convert the PDF to Markdown with page chunks
-    md_chunks = pymupdf4llm.to_markdown(pdf_path, page_chunks=True)
+    md_chunks = pymupdf4llm.to_markdown(pdf_path, page_chunks=True) 
+    # You can instead use the markdown to get customer and region info by processing each chunk with an llm, if you haven't processed the file already
+    # This will happen once for each file, so it's not a big deal
     documents = []
     for idx, chunk in enumerate(md_chunks):
         text = chunk.get("text", "").strip()
