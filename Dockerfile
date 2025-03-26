@@ -12,7 +12,8 @@ WORKDIR /app
 COPY requirements.txt /app/
 
 # Upgrade pip and install dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy the current directory contents into the container at /app
 COPY . /app/

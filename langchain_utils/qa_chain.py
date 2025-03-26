@@ -1,18 +1,28 @@
 import os
+import sys
+# os.environ["LANGCHAIN_TRACING_V2"] = "true"
+# os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
+# os.environ["LANGCHAIN_API_KEY"] = "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"  # Get from LangSmith settings
+# os.environ["LANGCHAIN_PROJECT"] = "pr-new-molecule-89"  # Your project name
 from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
 from langchain_openai import AzureChatOpenAI
-from langchain.callbacks.tracers import LangChainTracer
-from langchain.callbacks.manager import CallbackManager
+from langchain_openai import ChatOpenAI
+from email_tracer import EmailLangChainTracer
+from langchain_core.callbacks.manager import CallbackManager
+from langchain.callbacks.tracers.langchain import LangChainTracer
+
 from config import (AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_VERSION, 
                     AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, 
-                    TEMPERATURE, MAX_TOKENS, PDF_DIR, MAX_TOKENS_THRESHOLD, PROJECT_NAME, PERSIST_DIRECTORY)
+                    TEMPERATURE, MAX_TOKENS, PDF_DIR, MAX_TOKENS_THRESHOLD, PROJECT_NAME, PERSIST_DIRECTORY, OPENROUTER_API_KEY)
 from langchain_utils.vectorstore import initialize_faiss_vectorstore, embeddings
 from document_processing.pdf_extractor import extract_documents_from_pdf
 from document_processing.parser import LegalDocumentParser
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Initialize LangSmith tracer and callback manager
-tracer = LangChainTracer(project_name=PROJECT_NAME)
-callback_manager = CallbackManager([tracer])
+# Import your system prompt from the project root
+from system_prompt import system_prompt
+
 
 # Global variables to be initialized
 qa_chain = None
@@ -20,8 +30,9 @@ qa_chain = None
 def setup_qa_chain(vectorstore):
     retriever = vectorstore.as_retriever(
         search_type="similarity",
-        search_kwargs={"k": 12}
+        search_kwargs={"k": 22}
     )
+
     llm = AzureChatOpenAI(
         azure_endpoint=AZURE_OPENAI_ENDPOINT,
         openai_api_version=AZURE_OPENAI_API_VERSION,
@@ -30,13 +41,29 @@ def setup_qa_chain(vectorstore):
         temperature=TEMPERATURE,
         model_name=AZURE_OPENAI_DEPLOYMENT_NAME,
         max_tokens=MAX_TOKENS,
-        callback_manager=callback_manager,
+        #callback_manager=callback_manager,
     )
+    
+    # Create a custom prompt template that integrates the system prompt.
+    custom_prompt = PromptTemplate(
+        input_variables=["context", "question"],
+        template=f"""{system_prompt}
+
+Context:
+{{context}}
+
+User Query:
+{{question}}
+
+Answer:"""
+    )
+    
     return RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=retriever,
-        return_source_documents=True
+        return_source_documents=True,
+        chain_type_kwargs={"prompt": custom_prompt}
     )
 
 def load_all_documents(pdf_directory):
@@ -49,8 +76,10 @@ def load_all_documents(pdf_directory):
             page_documents = extract_documents_from_pdf(file_path)
             parser = LegalDocumentParser()
             for doc_obj in page_documents:
+                # Pass extra metadata (which includes customer, region, etc.) to the parser.
+                extra_metadata = doc_obj.metadata
                 if len(doc_obj.page_content.split()) > MAX_TOKENS_THRESHOLD:
-                    hierarchical_docs = parser.parse(doc_obj.page_content, source_name=file, page_number=doc_obj.metadata.get("page_number"))
+                    hierarchical_docs = parser.parse(doc_obj.page_content, source_name=file, page_number=doc_obj.metadata.get("page_number"), extra_metadata=extra_metadata)
                     all_documents.extend(hierarchical_docs)
                 else:
                     all_documents.append(doc_obj)

@@ -1,247 +1,877 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>NewCold Legal Support Chatbot</title>
-    <style>
-        :root {
-            --background-color: #FFFFFF;
-            --text-color: #1A1A1A;
-            --border-color: #E5E5E5;
-            --input-background: #FFFFFF;
-            --button-color: #5E44FF;
-            --button-hover: #4B37CC;
-            --human-background: #F8F8F8;
-            --assistant-background: #FFFFFF;
-            --code-background: #F8F8F8;
-            --welcome-background: #F0F4FF;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-bottom: 120px;
-        }
-        .welcome-container {
-            padding: 48px 20%;
-            background-color: var(--welcome-background);
-            text-align: center;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .welcome-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .welcome-title {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--text-color);
-            margin-bottom: 16px;
-        }
-        .welcome-subtitle {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 24px;
-            line-height: 1.6;
-        }
-        .welcome-features {
-            display: flex;
-            justify-content: center;
-            gap: 32px;
-            margin-top: 32px;
-        }
-        .feature-item {
-            flex: 1;
-            max-width: 240px;
-            padding: 24px;
-            background-color: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-        .feature-icon {
-            font-size: 24px;
-            margin-bottom: 16px;
-            color: var(--button-color);
-        }
-        .feature-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-        .feature-description {
-            font-size: 14px;
-            color: #666;
-        }
-        .message-wrapper {
-            padding: 0 20%;
-            border-bottom: 1px solid var(--border-color);
-        }
-        @media (max-width: 1024px) {
-            .message-wrapper, .welcome-container {
-                padding: 24px 5%;
-            }
-            .welcome-features {
-                flex-direction: column;
-                align-items: center;
-            }
-            .feature-item {
-                width: 100%;
-                max-width: none;
-            }
-        }
-        .message {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 24px 0;
-        }
-        .human-message {
-            background-color: var(--human-background);
-        }
-        .assistant-message {
-            background-color: var(--assistant-background);
-        }
-        .input-container {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 24px 20%;
-            background-color: var(--background-color);
-            border-top: 1px solid var(--border-color);
-        }
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            max-width: 800px;
-            margin: 0 auto;
-            width: 100%;
-            position: relative;
-        }
-        .query-box {
-            width: 100%;
-            padding: 16px;
-            font-size: 16px;
-            line-height: 1.5;
-            color: var(--text-color);
-            background-color: var(--input-background);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            resize: none;
-            max-height: 200px;
-            outline: none;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-        }
-        .query-box:focus {
-            border-color: var(--button-color);
-            box-shadow: 0 0 0 2px rgba(94, 68, 255, 0.1);
-        }
-        .submit-button {
-            position: absolute;
-            right: 12px;
-            bottom: 12px;
-            background-color: var(--button-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .submit-button:hover {
-            background-color: var(--button-hover);
-        }
-        .message-label {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        .source-info {
-            font-size: 12px;
-            color: #999;
-            margin-top: 12px;
-            border-top: 1px dashed #ccc;
-            padding-top: 8px;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NewCold Legal Support Chatbot</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    /* Light/Dark Theme Variables */
+    :root {
+      color-scheme: light dark;
+    }
+    /* Dark Theme (Default) */
+    :root {
+      --main-bg: #343541;
+      --chat-bg: #343541;
+      --human-bg: #444654;
+      --text-primary: #ECECF1;
+      --text-secondary: #ACACBE;
+      --button-primary: #10A37F;
+      --button-hover: #1A7F64;
+      --border-color: #4E4F60;
+      --thinking-color: #10A37F;
+      --code-bg: #2D2D3A;
+      --source-bg: rgba(78, 79, 96, 0.3);
+    }
+    /* Light Theme */
+    @media (prefers-color-scheme: light) {
+      :root {
+        --main-bg: #F7F7F8;
+        --chat-bg: #FFFFFF;
+        --human-bg: #F7F7F8;
+        --text-primary: #343541;
+        --text-secondary: #6E6E80;
+        --button-primary: #10A37F;
+        --button-hover: #1A7F64;
+        --border-color: #E5E5E5;
+        --thinking-color: #10A37F;
+        --code-bg: #F0F0F0;
+        --source-bg: rgba(229, 229, 229, 0.5);
+      }
+    }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    body {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background-color: var(--main-bg);
+      color: var(--text-primary);
+    }
+    /* Main Chat Area */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 120px;
+      scroll-behavior: smooth;
+    }
+    /* Welcome Screen */
+    .welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: calc(100% - 120px);
+      text-align: center;
+      padding: 0 20px;
+    }
+    .welcome-title {
+      font-size: 32px;
+      margin-bottom: 20px;
+    }
+    .welcome-description {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      max-width: 800px;
+      width: 100%;
+    }
+    .feature-card {
+      background-color: var(--human-bg);
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+    .feature-icon {
+      font-size: 24px;
+      margin-bottom: 12px;
+      color: var(--button-primary);
+    }
+    .feature-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .feature-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    /* Message Styles */
+    .message-wrapper {
+      padding: 20px 10%;
+      transition: background-color 0.3s;
+    }
+    .message {
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .message pre {
+      background-color: var(--code-bg);
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+    .message code {
+      background-color: var(--code-bg);
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .message p {
+      margin-bottom: 15px;
+    }
+    .message ul,
+    .message ol {
+      margin-left: 25px;
+      margin-bottom: 15px;
+    }
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+    }
+    .avatar.human {
+      background-color: #8E8EA0;
+    }
+    .avatar.assistant {
+      background-color: var(--button-primary);
+    }
+    .human-message {
+      background-color: var(--human-bg);
+    }
+    .assistant-message {
+      background-color: var(--chat-bg);
+    }
+    .message-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .message-wrapper:hover .message-actions {
+      visibility: visible;
+      opacity: 1;
+    }
+    .action-button {
+      background-color: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    .action-button:hover {
+      background-color: var(--human-bg);
+    }
+    /* Source Info */
+    .source-info-container {
+      margin-top: 15px;
+    }
+    .source-info-button {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--button-primary);
+      background-color: transparent;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .source-info-button:hover {
+      background-color: rgba(16, 163, 127, 0.1);
+    }
+    .source-info-button .icon {
+      transition: transform 0.3s ease;
+    }
+    .source-info-button.expanded .icon {
+      transform: rotate(180deg);
+    }
+    .source-info {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+      opacity: 0;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-radius: 6px;
+      margin-top: 5px;
+    }
+    .source-info.expanded {
+      max-height: 500px;
+      padding: 10px;
+      opacity: 1;
+      background-color: var(--source-bg);
+    }
+    .source-info ul {
+      margin-top: 5px;
+      margin-left: 20px;
+    }
+    .source-info ul li {
+      margin-bottom: 5px;
+    }
+    /* Input Area */
+    .input-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px 10%;
+      background-color: var(--main-bg);
+    }
+    .input-form {
+      position: relative;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .input-textarea {
+      width: 100%;
+      resize: none;
+      background-color: var(--human-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 15px 60px 15px 15px;
+      color: var(--text-primary);
+      font-size: 16px;
+      line-height: 1.5;
+      max-height: 200px;
+      overflow-y: auto;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .input-textarea:focus {
+      outline: none;
+      border-color: var(--button-primary);
+      box-shadow: 0 0 10px rgba(16, 163, 127, 0.5);
+    }
+    .send-button {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      background: linear-gradient(45deg, var(--button-primary), var(--button-hover));
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .send-button:disabled {
+      background-color: var(--border-color);
+      cursor: not-allowed;
+    }
+    .send-button:hover:not(:disabled) {
+      transform: scale(1.05);
+    }
+    .input-footer {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    /* Thinking Animation */
+    .thinking-animation {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 5px;
+    }
+    .thinking-dot {
+      width: 6px;
+      height: 6px;
+      background-color: var(--thinking-color);
+      border-radius: 50%;
+      animation: thinking 1.4s infinite ease-in-out;
+    }
+    .thinking-dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+    .thinking-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    .thinking-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    .thinking-text {
+      margin-top: 12px;
+      color: var(--text-secondary);
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .thinking-text.visible {
+      opacity: 1;
+    }
+    @keyframes thinking {
+      0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.4;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    /* Mobile Responsiveness */
+    @media (max-width: 768px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      .message-wrapper {
+        padding: 15px 5%;
+      }
+      .input-container {
+        padding: 15px 5%;
+      }
+    }
+    /* Utility Classes */
+    .hidden {
+      display: none !important;
+    }
+
+    /* Modal Styles */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .modal.hidden {
+      display: none;
+    }
+    .modal-content {
+      background-color: var(--human-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 30px;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+    }
+    .modal-content h2 {
+      margin-bottom: 10px;
+      color: var(--text-primary);
+    }
+    .modal-content p {
+      margin-bottom: 20px;
+      color: var(--text-secondary);
+    }
+    .modal-content input[type="email"] {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background-color: var(--chat-bg);
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+    .modal-content input[type="email"]:focus {
+      outline: none;
+      border-color: var(--button-primary);
+    }
+    .modal-content button {
+      background: linear-gradient(45deg, var(--button-primary), var(--button-hover));
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+    .modal-content button:hover {
+      background: linear-gradient(45deg, var(--button-hover), var(--button-primary));
+    }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        {% if not answer %}
-        <div class="welcome-container">
-            <div class="welcome-content">
-                <h1 class="welcome-title">Welcome to NewCold Legal Support</h1>
-                <p class="welcome-subtitle">Your AI-powered assistant for legal queries and document analysis. How can I help you today?</p>
-                <div class="welcome-features">
-                    <div class="feature-item">
-                        <div class="feature-icon">📋</div>
-                        <div class="feature-title">Document Analysis</div>
-                        <div class="feature-description">Get instant insights on legal documents and agreements</div>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">⚖️</div>
-                        <div class="feature-title">Legal Guidance</div>
-                        <div class="feature-description">Clear explanations of legal terms and concepts</div>
-                    </div>
-                    <div class="feature-item">
-                        <div class="feature-icon">🔍</div>
-                        <div class="feature-title">Quick Answers</div>
-                        <div class="feature-description">Fast responses to your legal queries</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+  <!-- Modal for Email Capture -->
+  <div id="emailModal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Welcome to NewCold Legal Support</h2>
+      <p>Please enter your email address to continue</p>
+      <input type="email" id="userEmailInput" placeholder="Your Email" required />
+      <button id="emailSubmitButton">Continue</button>
+    </div>
+  </div>
 
-        {% if answer %}
-        <!-- Human Message -->
-        <div class="message-wrapper human-message">
-            <div class="message">
-                <div class="message-label">Human</div>
-                <p>{{ query }}</p>
+  <!-- (Optional) Hidden fallback form if needed -->
+  <form id="fallbackForm" method="POST" action="/" style="display: none;">
+    <input type="text" id="fallbackInput" name="query" value="" />
+    <input type="hidden" id="conversationHistory" name="conversation_history" value="" />
+  </form>
+
+  <!-- Main Chat Area -->
+  <div class="main">
+    <div class="chat-container" id="chatContainer">
+      <!-- Always start with a welcome message -->
+      <div class="welcome-screen" id="welcomeScreen">
+        <h1 class="welcome-title">NewCold Legal Support</h1>
+        <p class="welcome-description">
+          Your AI-powered assistant for legal queries and document analysis. How can I help you today?
+        </p>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-file-contract"></i>
             </div>
-        </div>
-        <!-- Final Answer -->
-        <div class="message-wrapper assistant-message">
-            <div class="message">
-                <div class="message-label">NewCold Assistant</div>
-                <p>{{ answer|safe }}</p>
-                {% if sources %}
-                <div class="source-info">
-                    <strong>Sources:</strong>
-                    <ul>
-                    {% for src in sources %}
-                        <li>{{ src }}</li>
-                    {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+            <div class="feature-title">Document Analysis</div>
+            <div class="feature-description">
+              Get instant insights on legal documents and agreements
             </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-balance-scale"></i>
+            </div>
+            <div class="feature-title">Legal Guidance</div>
+            <div class="feature-description">
+              Clear explanations of legal terms and concepts
+            </div>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">
+              <i class="fas fa-search"></i>
+            </div>
+            <div class="feature-title">Quick Answers</div>
+            <div class="feature-description">
+              Fast responses to your legal queries
+            </div>
+          </div>
         </div>
-        {% endif %}
+      </div>
     </div>
+
+    <!-- Input Container -->
     <div class="input-container">
-        <form method="POST" action="/">
-            <textarea 
-                id="query" 
-                name="query" 
-                rows="1" 
-                class="query-box" 
-                placeholder="Ask anything about NewCold legal queries..."
-                oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';"
-            >{{ query }}</textarea>
-            <button type="submit" class="submit-button">Send</button>
-        </form>
+      <div class="input-form" id="messageForm">
+        <textarea 
+          id="userInput" 
+          class="input-textarea" 
+          placeholder="Message NewCold Legal Assistant..." 
+          rows="1"
+          onInput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"
+        ></textarea>
+        <button type="button" class="send-button" id="sendButton" disabled>
+          <i class="fas fa-paper-plane"></i>
+        </button>
+        <div class="input-footer">
+          <span>NewCold Legal Assistant may produce inaccurate information about people, places, or facts.</span>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const chatContainer = document.getElementById('chatContainer');
+      const userInput = document.getElementById('userInput');
+      const sendButton = document.getElementById('sendButton');
+      const fallbackForm = document.getElementById('fallbackForm');
+      const fallbackInput = document.getElementById('fallbackInput');
+
+      // Modal elements
+      const emailModal = document.getElementById('emailModal');
+      const userEmailInput = document.getElementById('userEmailInput');
+      const emailSubmitButton = document.getElementById('emailSubmitButton');
+
+      // Clear any persisted conversation history so the welcome message always shows
+      localStorage.removeItem("conversationHistory");
+
+      // Check if user email is stored; if not, show modal
+      let userEmail = localStorage.getItem("userEmail");
+      if (!userEmail) {
+        emailModal.classList.remove("hidden");
+      }
+
+      // On "Continue" click in modal, store email in localStorage
+      emailSubmitButton.addEventListener("click", function() {
+        const emailValue = userEmailInput.value.trim();
+        if (emailValue) {
+          localStorage.setItem("userEmail", emailValue);
+          userEmail = emailValue;
+          emailModal.classList.add("hidden");
+        } else {
+          alert("Please enter a valid email address.");
+        }
+      });
+
+      // Load conversation history (should be empty after clearing)
+      loadConversationHistory();
+      scrollToBottom();
+
+      // Enable send button when input is not empty
+      userInput.addEventListener('input', function() {
+        sendButton.disabled = !userInput.value.trim();
+      });
+
+      // Send message on button click
+      sendButton.addEventListener('click', sendMessage);
+
+      // Allow Enter (without Shift) to send message
+      userInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (!sendButton.disabled) {
+            sendMessage();
+          }
+        }
+      });
+
+      // AJAX-based sendMessage function
+      function sendMessage() {
+        // If user has not entered an email, prompt them again
+        if (!userEmail) {
+          alert("Please enter your email first.");
+          return;
+        }
+
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        // Show user's message and thinking animation
+        showThinking();
+
+        // Prepare payload, now including email
+        const payload = {
+          query: message,
+          email: userEmail
+        };
+
+        // Send AJAX POST request
+        fetch("/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+          // Remove thinking animation element
+          const thinkingEl = document.getElementById("thinkingAnimation");
+          if (thinkingEl) {
+            thinkingEl.parentNode.removeChild(thinkingEl);
+          }
+          // Append assistant's answer to chat container
+          displayAssistantMessage(data.answer, data.sources);
+          // Update conversation history in localStorage
+          storeConversationHistory();
+          // Reset input
+          userInput.disabled = false;
+          sendButton.disabled = true;
+          userInput.value = "";
+          userInput.style.height = 'auto';
+          scrollToBottom();
+        })
+        .catch(error => {
+          console.error("Error fetching response:", error);
+          const thinkingEl = document.getElementById("thinkingAnimation");
+          if (thinkingEl) {
+            thinkingEl.parentNode.removeChild(thinkingEl);
+          }
+          displayAssistantMessage("Error: Could not retrieve response.", []);
+          userInput.disabled = false;
+          sendButton.disabled = false;
+          scrollToBottom();
+        });
+      }
+
+      // Append assistant message to the chat container
+      function displayAssistantMessage(answer, sources) {
+        const assistantMessageWrapper = document.createElement('div');
+        assistantMessageWrapper.className = 'message-wrapper assistant-message';
+        let sourcesHTML = '';
+        if (sources && sources.length > 0) {
+          sourcesHTML = `
+            <div class="source-info-container">
+              <button class="source-info-button" onclick="toggleSources(this)">
+                <i class="fas fa-angle-down icon"></i>
+                <span>View Sources</span>
+                <span class="source-count">(${sources.length})</span>
+              </button>
+              <div class="source-info">
+                <strong>Sources:</strong>
+                <ul>
+                  ${sources.map(src => `<li>${src}</li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          `;
+        }
+        assistantMessageWrapper.innerHTML = `
+          <div class="message">
+            <div class="message-header">
+              <div class="avatar assistant">NC</div>
+              <div>NewCold Assistant</div>
+            </div>
+            <div class="message-content">${answer}</div>
+            ${sourcesHTML}
+            <div class="message-actions">
+              <button class="action-button copy-btn" title="Copy message">
+                <i class="far fa-copy"></i>
+              </button>
+              <button class="action-button like-btn" title="Like">
+                <i class="far fa-thumbs-up"></i>
+              </button>
+              <button class="action-button dislike-btn" title="Dislike">
+                <i class="far fa-thumbs-down"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        chatContainer.appendChild(assistantMessageWrapper);
+      }
+
+      // Store conversation history from DOM into localStorage
+      function storeConversationHistory() {
+        const conversationItems = [];
+        const userMessages = document.querySelectorAll('.human-message .message-content');
+        const assistantMessages = document.querySelectorAll('.assistant-message .message-content');
+        let completePairs = Math.min(userMessages.length, assistantMessages.length);
+        for (let i = 0; i < completePairs; i++) {
+          const item = {
+            query: userMessages[i].innerText,
+            answer: assistantMessages[i].innerHTML,
+            sources: []
+          };
+          const container = assistantMessages[i].closest('.assistant-message');
+          if (container) {
+            const sourcesList = container.querySelectorAll('.source-info-container li');
+            sourcesList.forEach(source => {
+              item.sources.push(source.innerText);
+            });
+          }
+          conversationItems.push(item);
+        }
+        localStorage.setItem("conversationHistory", JSON.stringify(conversationItems));
+      }
+
+      // Load conversation history from localStorage (should be empty after clearing)
+      function loadConversationHistory() {
+        const storedHistory = localStorage.getItem("conversationHistory");
+        if (storedHistory) {
+          try {
+            const history = JSON.parse(storedHistory);
+            history.forEach(item => {
+              // Append user message
+              const userMessageWrapper = document.createElement('div');
+              userMessageWrapper.className = 'message-wrapper human-message';
+              userMessageWrapper.innerHTML = `
+                <div class="message">
+                  <div class="message-header">
+                    <div class="avatar human">U</div>
+                    <div>You</div>
+                  </div>
+                  <div class="message-content">${item.query}</div>
+                  <div class="message-actions">
+                    <button class="action-button copy-btn" title="Copy message">
+                      <i class="far fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+              `;
+              chatContainer.appendChild(userMessageWrapper);
+
+              // Append assistant message
+              const assistantMessageWrapper = document.createElement('div');
+              assistantMessageWrapper.className = 'message-wrapper assistant-message';
+              let sourcesHTML = '';
+              if (item.sources && item.sources.length > 0) {
+                sourcesHTML = `
+                  <div class="source-info-container">
+                    <button class="source-info-button" onclick="toggleSources(this)">
+                      <i class="fas fa-angle-down icon"></i>
+                      <span>View Sources</span>
+                      <span class="source-count">(${item.sources.length})</span>
+                    </button>
+                    <div class="source-info">
+                      <strong>Sources:</strong>
+                      <ul>
+                        ${item.sources.map(src => `<li>${src}</li>`).join('')}
+                      </ul>
+                    </div>
+                  </div>
+                `;
+              }
+              assistantMessageWrapper.innerHTML = `
+                <div class="message">
+                  <div class="message-header">
+                    <div class="avatar assistant">NC</div>
+                    <div>NewCold Assistant</div>
+                  </div>
+                  <div class="message-content">${item.answer}</div>
+                  ${sourcesHTML}
+                  <div class="message-actions">
+                    <button class="action-button copy-btn" title="Copy message">
+                      <i class="far fa-copy"></i>
+                    </button>
+                    <button class="action-button like-btn" title="Like">
+                      <i class="far fa-thumbs-up"></i>
+                    </button>
+                    <button class="action-button dislike-btn" title="Dislike">
+                      <i class="far fa-thumbs-down"></i>
+                    </button>
+                  </div>
+                </div>
+              `;
+              chatContainer.appendChild(assistantMessageWrapper);
+            });
+          } catch (e) {
+            console.error("Error loading conversation history:", e);
+          }
+        }
+      }
+
+      // Show thinking animation with sequential status text
+      function showThinking() {
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        if (welcomeScreen && !welcomeScreen.classList.contains('hidden')) {
+          welcomeScreen.classList.add('hidden');
+        }
+        const userMessage = userInput.value.trim();
+        if (userMessage) {
+          const messageWrapper = document.createElement('div');
+          messageWrapper.className = 'message-wrapper human-message';
+          messageWrapper.innerHTML = `
+            <div class="message">
+              <div class="message-header">
+                <div class="avatar human">U</div>
+                <div>You</div>
+              </div>
+              <div class="message-content">${userMessage}</div>
+              <div class="message-actions">
+                <button class="action-button copy-btn" title="Copy message">
+                  <i class="far fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          `;
+          chatContainer.appendChild(messageWrapper);
+        }
+        const thinkingWrapper = document.createElement('div');
+        thinkingWrapper.className = 'message-wrapper assistant-message';
+        thinkingWrapper.id = 'thinkingAnimation';
+        thinkingWrapper.innerHTML = `
+          <div class="message">
+            <div class="message-header">
+              <div class="avatar assistant">NC</div>
+              <div>NewCold Assistant</div>
+            </div>
+            <div class="thinking-animation">
+              <div class="thinking-dot"></div>
+              <div class="thinking-dot"></div>
+              <div class="thinking-dot"></div>
+            </div>
+            <div id="thinkingText" class="thinking-text"></div>
+          </div>
+        `;
+        chatContainer.appendChild(thinkingWrapper);
+        scrollToBottom();
+        const thinkingText = document.getElementById('thinkingText');
+        let stepIndex = 0;
+        const processingSteps = [
+          "Analyzing your query...",
+          "Searching legal documents...",
+          "Reviewing relevant contracts...",
+          "Identifying applicable clauses...",
+          "Preparing legal insights..."
+        ];
+        function showNextStep() {
+          if (stepIndex < processingSteps.length) {
+            thinkingText.innerText = processingSteps[stepIndex];
+            thinkingText.classList.add('visible');
+            stepIndex++;
+            setTimeout(() => {
+              thinkingText.classList.remove('visible');
+              showNextStep();
+            }, 3000);
+          }
+        }
+        showNextStep();
+        userInput.disabled = true;
+        sendButton.disabled = true;
+      }
+
+      // Scroll to bottom of chat container
+      function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+
+      // Delegate copy button handler
+      document.addEventListener('click', function(e) {
+        if (e.target.closest('.copy-btn')) {
+          const button = e.target.closest('.copy-btn');
+          const messageContent = button.closest('.message').querySelector('.message-content').innerText;
+          navigator.clipboard.writeText(messageContent).then(() => {
+            const originalIcon = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+              button.innerHTML = originalIcon;
+            }, 1000);
+          });
+        }
+      });
+    });
+
+    // Global function to toggle source information
+    function toggleSources(button) {
+      button.classList.toggle('expanded');
+      const sourceInfo = button.nextElementSibling;
+      sourceInfo.classList.toggle('expanded');
+      const textSpan = button.querySelector('span:not(.source-count)');
+      textSpan.textContent = sourceInfo.classList.contains('expanded') ? 'Hide Sources' : 'View Sources';
+    }
+  </script>
 </body>
 </html>
