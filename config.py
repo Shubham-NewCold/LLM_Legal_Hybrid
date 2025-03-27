@@ -24,7 +24,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 # LangChain tracing and callback settings
 PROJECT_NAME = "pr-new-molecule-89"
 TEMPERATURE = 0.15
-MAX_TOKENS = 1024
+MAX_TOKENS = 768
 
 # Token thresholds for hierarchical parsing
 MAX_TOKENS_THRESHOLD = 250

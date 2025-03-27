@@ -1,10 +1,5 @@
 import os
 import sys
-# os.environ["LANGCHAIN_TRACING_V2"] = "true"
-# os.environ["LANGCHAIN_ENDPOINT"] = "https://api.smith.langchain.com"
-# os.environ["LANGCHAIN_API_KEY"] = "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"  # Get from LangSmith settings 
-# NEVER EVER EVER PASS your API key in the code. It's a security risk. Use environment variables, config or a secure vault.
-# os.environ["LANGCHAIN_PROJECT"] = "pr-new-molecule-89"  # Your project name
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_openai import AzureChatOpenAI
