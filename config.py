@@ -53,10 +53,10 @@ MAX_TOKENS_THRESHOLD = 350 # Max words before hierarchical parsing is triggered
 # --- Retrieval Settings ---
 # Configure FAISS retriever type and parameters (Dense Retrieval)
 RETRIEVAL_TYPE = "similarity" # Using top-k for the dense part of hybrid search
-TOP_K = 100 # How many results to initially get from FAISS
+TOP_K = 25 # How many results to initially get from FAISS
 
 # --- NEW: SPLADE Top-N (Sparse Retrieval) ---
-SPLADE_TOP_N = 100 # How many results to initially get from SPLADE
+SPLADE_TOP_N = 25 # How many results to initially get from SPLADE
 
 # --- REMOVED: BM25 Top-N ---
 # BM25_TOP_N = 50
@@ -67,7 +67,7 @@ RRF_K = 60 # Constant for Reciprocal Rank Fusion (default = 60)
 # --- Reranking Settings ---
 RERANKER_ENABLED = True # Set to False to disable reranking easily
 RERANKER_MODEL_NAME = "jinaai/jina-reranker-v2-base-multilingual"
-RERANK_CANDIDATE_POOL_SIZE = 200 # How many candidates from RRF to feed into the reranker
+RERANK_CANDIDATE_POOL_SIZE = 50 # How many candidates from RRF to feed into the reranker
 PASS_2_SCORE_THRESHOLD = 0.3 # Optional threshold for comparative query Pass 2 selection
 
 # --- LLM Chain Input Limit Settings ---
