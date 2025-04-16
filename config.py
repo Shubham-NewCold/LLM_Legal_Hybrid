@@ -65,7 +65,7 @@ SPLADE_TOP_N = 25 # How many results to initially get from SPLADE
 RRF_K = 60 # Constant for Reciprocal Rank Fusion (default = 60)
 
 # --- Reranking Settings ---
-RERANKER_ENABLED = True # Set to False to disable reranking easily
+RERANKER_ENABLED = False # Set to False to disable reranking easily
 RERANKER_MODEL_NAME = "jinaai/jina-reranker-v2-base-multilingual"
 RERANK_CANDIDATE_POOL_SIZE = 50 # How many candidates from RRF to feed into the reranker
 PASS_2_SCORE_THRESHOLD = 0.3 # Optional threshold for comparative query Pass 2 selection
