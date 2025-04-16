@@ -60,8 +60,6 @@ instance/
 # Environment variables and sensitive information
 .env
 
-# FAISS vectorstore persistence (if auto-generated, not needed in VCS)
-faiss_db/
 
 # OS-specific files
 .DS_Store

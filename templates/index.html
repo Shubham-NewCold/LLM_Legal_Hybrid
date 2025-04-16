@@ -66,7 +66,7 @@
     .chat-container {
       flex: 1;
       overflow-y: auto;
-      padding-bottom: 120px;
+      padding-bottom: 150px; /* Increased padding for debug checkbox */
       scroll-behavior: smooth;
     }
     /* Welcome Screen */
@@ -75,7 +75,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: calc(100% - 120px);
+      height: calc(100% - 150px); /* Adjusted height */
       text-align: center;
       padding: 0 20px;
     }
@@ -133,6 +133,8 @@
       border-radius: 6px;
       overflow-x: auto;
       margin: 10px 0;
+      white-space: pre-wrap; /* Ensure pre content wraps */
+      word-wrap: break-word; /* Ensure long words break */
     }
     .message code {
       background-color: var(--code-bg);
@@ -256,8 +258,9 @@
       bottom: 0;
       left: 0;
       right: 0;
-      padding: 20px 10%;
+      padding: 15px 10%; /* Adjusted padding */
       background-color: var(--main-bg);
+      border-top: 1px solid var(--border-color); /* Added border */
     }
     .input-form {
       position: relative;
@@ -286,7 +289,7 @@
     .send-button {
       position: absolute;
       right: 12px;
-      bottom: 12px;
+      bottom: 12px; /* Adjusted position relative to textarea */
       background: linear-gradient(45deg, var(--button-primary), var(--button-hover));
       color: white;
       border: none;
@@ -307,6 +310,22 @@
     .send-button:hover:not(:disabled) {
       transform: scale(1.05);
     }
+    /* --- ADDED: Debug Checkbox Styling --- */
+    .debug-option {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .debug-option input[type="checkbox"] {
+        margin: 0; /* Reset margin */
+        width: 14px;
+        height: 14px;
+        accent-color: var(--button-primary); /* Style checkbox color */
+    }
+    /* --- END ADDED --- */
     .input-footer {
       margin-top: 8px;
       text-align: center;
@@ -366,6 +385,9 @@
       .input-container {
         padding: 15px 5%;
       }
+      .chat-container {
+        padding-bottom: 170px; /* Adjust for smaller screens if needed */
+      }
     }
     /* Utility Classes */
     .hidden {
@@ -384,9 +406,12 @@
       align-items: center;
       justify-content: center;
       z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.3s ease;
     }
     .modal.hidden {
-      display: none;
+      opacity: 0;
+      pointer-events: none; /* Prevent interaction when hidden */
     }
     .modal-content {
       background-color: var(--human-bg);
@@ -405,17 +430,18 @@
       margin-bottom: 20px;
       color: var(--text-secondary);
     }
-    .modal-content input[type="email"] {
+    .modal-content input[type="email"],
+    .modal-content input[type="password"] { /* Style both inputs */
       width: 100%;
       padding: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       border: 1px solid var(--border-color);
       border-radius: 4px;
       background-color: var(--chat-bg);
       color: var(--text-primary);
       font-size: 14px;
     }
-    .modal-content input[type="email"]:focus {
+    .modal-content input:focus {
       outline: none;
       border-color: var(--button-primary);
     }
@@ -428,28 +454,35 @@
       cursor: pointer;
       font-size: 16px;
       transition: background 0.3s;
+      margin-top: 10px;
     }
     .modal-content button:hover {
       background: linear-gradient(45deg, var(--button-hover), var(--button-primary));
     }
+    .modal-error {
+        color: #ff4d4d;
+        font-size: 13px;
+        margin-top: -10px; /* Pull up slightly */
+        margin-bottom: 15px;
+        min-height: 1.2em; /* Reserve space */
+        text-align: left; /* Align error text left */
+        padding-left: 2px; /* Small indent */
+    }
   </style>
 </head>
 <body>
-  <!-- Modal for Email Capture -->
-  <div id="emailModal" class="modal hidden">
+
+  <!-- Combined Email/Password Modal -->
+  <div id="accessModal" class="modal hidden"> <!-- Start hidden -->
     <div class="modal-content">
-      <h2>Welcome to NewCold Legal Support</h2>
-      <p>Please enter your email address to continue</p>
-      <input type="email" id="userEmailInput" placeholder="Your Email" required />
-      <button id="emailSubmitButton">Continue</button>
+      <h2>Access Required</h2>
+      <p>Enter your email and the provided password.</p>
+      <div id="modalError" class="modal-error"></div> <!-- Error message placeholder -->
+      <input type="email" id="modalEmailInput" placeholder="Your Email" required />
+      <input type="password" id="modalPasswordInput" placeholder="Password" required />
+      <button id="accessSubmitButton">Continue</button>
     </div>
   </div>
-
-  <!-- (Optional) Hidden fallback form if needed -->
-  <form id="fallbackForm" method="POST" action="/" style="display: none;">
-    <input type="text" id="fallbackInput" name="query" value="" />
-    <input type="hidden" id="conversationHistory" name="conversation_history" value="" />
-  </form>
 
   <!-- Main Chat Area -->
   <div class="main">
@@ -495,16 +528,26 @@
     <!-- Input Container -->
     <div class="input-container">
       <div class="input-form" id="messageForm">
-        <textarea 
-          id="userInput" 
-          class="input-textarea" 
-          placeholder="Message NewCold Legal Assistant..." 
+        <textarea
+          id="userInput"
+          class="input-textarea"
+          placeholder="Message NewCold Legal Assistant..."
           rows="1"
           onInput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';"
         ></textarea>
         <button type="button" class="send-button" id="sendButton" disabled>
           <i class="fas fa-paper-plane"></i>
         </button>
+
+        <!-- ********** ADDED DEBUG CHECKBOX ********** -->
+        <div class="debug-option">
+          <input class="form-check-input" type="checkbox" value="true" id="debugRetrievalCheckbox">
+          <label class="form-check-label" for="debugRetrievalCheckbox">
+            Compare Retrieval Methods (Debug - Skips QA)
+          </label>
+        </div>
+        <!-- ******************************************* -->
+
         <div class="input-footer">
           <span>NewCold Legal Assistant may produce inaccurate information about people, places, or facts.</span>
         </div>
@@ -514,51 +557,89 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // --- Define the single pre-set password here ---
+      const PRESET_PASSWORD = "NewColdAccess2024!"; // *** REPLACE THIS WITH YOUR ACTUAL PASSWORD ***
+      // ---------------------------------------------
+
       const chatContainer = document.getElementById('chatContainer');
       const userInput = document.getElementById('userInput');
       const sendButton = document.getElementById('sendButton');
-      const fallbackForm = document.getElementById('fallbackForm');
-      const fallbackInput = document.getElementById('fallbackInput');
+      const debugCheckbox = document.getElementById('debugRetrievalCheckbox');
 
-      // Modal elements
-      const emailModal = document.getElementById('emailModal');
-      const userEmailInput = document.getElementById('userEmailInput');
-      const emailSubmitButton = document.getElementById('emailSubmitButton');
+      // Access Modal elements
+      const accessModal = document.getElementById('accessModal');
+      const modalEmailInput = document.getElementById('modalEmailInput');
+      const modalPasswordInput = document.getElementById('modalPasswordInput');
+      const accessSubmitButton = document.getElementById('accessSubmitButton');
+      const modalError = document.getElementById('modalError');
 
-      // Clear any persisted conversation history so the welcome message always shows
-      localStorage.removeItem("conversationHistory");
+      let userEmail = localStorage.getItem("userEmail"); // Check if email was stored from a previous session
 
-      // Check if user email is stored; if not, show modal
-      let userEmail = localStorage.getItem("userEmail");
+      // --- Initial Check: Email Existence ---
+      // If no email is stored from a previous session, show the access modal
       if (!userEmail) {
-        emailModal.classList.remove("hidden");
+        accessModal.classList.remove('hidden');
+      } else {
+        console.log("User email found in localStorage:", userEmail);
+        // User has used the app before, assume they are "logged in" for this session
       }
 
-      // On "Continue" click in modal, store email in localStorage
-      emailSubmitButton.addEventListener("click", function() {
-        const emailValue = userEmailInput.value.trim();
-        if (emailValue) {
-          localStorage.setItem("userEmail", emailValue);
-          userEmail = emailValue;
-          emailModal.classList.add("hidden");
-        } else {
-          alert("Please enter a valid email address.");
-        }
+      // --- Access Modal Logic ---
+      accessSubmitButton.addEventListener('click', handleAccessSubmit);
+      modalPasswordInput.addEventListener('keydown', function(e) { // Allow Enter on password field
+          if (e.key === 'Enter') {
+              handleAccessSubmit();
+          }
+      });
+       modalEmailInput.addEventListener('keydown', function(e) { // Allow Enter on email field too
+          if (e.key === 'Enter') {
+              handleAccessSubmit();
+          }
       });
 
-      // Load conversation history (should be empty after clearing)
-      loadConversationHistory();
+      function handleAccessSubmit() {
+        const emailValue = modalEmailInput.value.trim();
+        const passwordValue = modalPasswordInput.value.trim();
+        modalError.textContent = ''; // Clear previous errors
+
+        // 1. Validate Email Format
+        if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+          modalError.textContent = "Please enter a valid email address.";
+          return;
+        }
+
+        // 2. Check if Password is Entered
+        if (!passwordValue) {
+            modalError.textContent = "Password is required.";
+            return;
+        }
+
+        // 3. Check Password Match
+        if (passwordValue === PRESET_PASSWORD) {
+          // Success
+          console.log("Password correct. Access granted for email:", emailValue);
+          localStorage.setItem("userEmail", emailValue); // Store/update email
+          userEmail = emailValue; // Update global variable
+          accessModal.classList.add('hidden'); // Hide modal
+        } else {
+          // Failure
+          console.log("Incorrect password entered.");
+          modalError.textContent = 'Incorrect password.';
+          modalPasswordInput.value = ''; // Clear password field on failure
+        }
+      }
+
+      // --- Chat Functionality ---
+      // Load conversation history (cleared on load in your original code)
+      // localStorage.removeItem("conversationHistory"); // Keep if you want no persistence
+      // loadConversationHistory();
       scrollToBottom();
 
-      // Enable send button when input is not empty
       userInput.addEventListener('input', function() {
         sendButton.disabled = !userInput.value.trim();
       });
 
-      // Send message on button click
       sendButton.addEventListener('click', sendMessage);
-
-      // Allow Enter (without Shift) to send message
       userInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -568,66 +649,96 @@
         }
       });
 
-      // AJAX-based sendMessage function
       function sendMessage() {
-        // If user has not entered an email, prompt them again
+        // ** Check if userEmail is set (meaning they passed the modal check) **
         if (!userEmail) {
-          alert("Please enter your email first.");
+          accessModal.classList.remove('hidden'); // Show modal again if email somehow missing
+          alert("Please provide your email and the correct password first.");
           return;
         }
 
         const message = userInput.value.trim();
         if (!message) return;
+        const isDebugMode = debugCheckbox.checked;
 
-        // Show user's message and thinking animation
-        showThinking();
+        showThinking(message);
 
-        // Prepare payload, now including email
+        // Use the globally stored userEmail from successful modal submission
         const payload = {
           query: message,
-          email: userEmail
+          email: userEmail,
+          debug_retrieval: isDebugMode
         };
+        console.log("Sending payload with email:", userEmail, payload);
 
-        // Send AJAX POST request
+        // --- Fetch logic ---
         fetch("/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        })
-        .then(response => response.json())
-        .then(data => {
-          // Remove thinking animation element
-          const thinkingEl = document.getElementById("thinkingAnimation");
-          if (thinkingEl) {
-            thinkingEl.parentNode.removeChild(thinkingEl);
-          }
-          // Append assistant's answer to chat container
-          displayAssistantMessage(data.answer, data.sources);
-          // Update conversation history in localStorage
-          storeConversationHistory();
-          // Reset input
-          userInput.disabled = false;
-          sendButton.disabled = true;
-          userInput.value = "";
-          userInput.style.height = 'auto';
-          scrollToBottom();
-        })
-        .catch(error => {
-          console.error("Error fetching response:", error);
-          const thinkingEl = document.getElementById("thinkingAnimation");
-          if (thinkingEl) {
-            thinkingEl.parentNode.removeChild(thinkingEl);
-          }
-          displayAssistantMessage("Error: Could not retrieve response.", []);
-          userInput.disabled = false;
-          sendButton.disabled = false;
-          scrollToBottom();
-        });
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+         })
+          .then(response => {
+            console.log(`sendMessage: Received response status: ${response.status}`);
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(`HTTP error ${response.status}: ${text}`) });
+            }
+            return response.json();
+          })
+          .then(data => {
+            const thinkingEl = document.getElementById("thinkingAnimation");
+            if (thinkingEl) thinkingEl.parentNode.removeChild(thinkingEl);
+
+            if (isDebugMode) {
+              displayDebugResponse(data);
+            } else {
+              if (data.error) {
+                  displayAssistantMessage(`Error: ${data.error}`, []);
+              } else {
+                  displayAssistantMessage(data.answer, data.sources);
+                  // storeConversationHistory();
+              }
+            }
+            userInput.disabled = false;
+            userInput.value = "";
+            userInput.style.height = 'auto';
+            sendButton.disabled = true;
+            scrollToBottom();
+          })
+          .catch(error => {
+            console.error("sendMessage: Fetch error:", error);
+            const thinkingEl = document.getElementById("thinkingAnimation");
+            if (thinkingEl) thinkingEl.parentNode.removeChild(thinkingEl);
+            displayAssistantMessage(`Error: Could not retrieve response. ${error.message}`, []);
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            scrollToBottom();
+          });
       }
 
-      // Append assistant message to the chat container
+      // --- Display/Helper Functions ---
+      function displayDebugResponse(data) {
+        const debugMessageWrapper = document.createElement('div');
+        debugMessageWrapper.className = 'message-wrapper assistant-message';
+        debugMessageWrapper.innerHTML = `
+          <div class="message">
+            <div class="message-header">
+              <div class="avatar assistant">DBG</div>
+              <div>Debug Retrieval Comparison</div>
+            </div>
+            <div class="message-content">
+              <p><strong>Retrieval Comparison Results (JSON):</strong></p>
+              <pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+            </div>
+            <div class="message-actions">
+              <button class="action-button copy-btn" title="Copy JSON results">
+                <i class="far fa-copy"></i>
+              </button>
+            </div>
+          </div>
+        `;
+        chatContainer.appendChild(debugMessageWrapper);
+      }
+
       function displayAssistantMessage(answer, sources) {
         const assistantMessageWrapper = document.createElement('div');
         assistantMessageWrapper.className = 'message-wrapper assistant-message';
@@ -643,7 +754,7 @@
               <div class="source-info">
                 <strong>Sources:</strong>
                 <ul>
-                  ${sources.map(src => `<li>${src}</li>`).join('')}
+                  ${sources.map(src => `<li>${escapeHtml(src)}</li>`).join('')}
                 </ul>
               </div>
             </div>
@@ -673,129 +784,62 @@
         chatContainer.appendChild(assistantMessageWrapper);
       }
 
-      // Store conversation history from DOM into localStorage
       function storeConversationHistory() {
         const conversationItems = [];
-        const userMessages = document.querySelectorAll('.human-message .message-content');
-        const assistantMessages = document.querySelectorAll('.assistant-message .message-content');
-        let completePairs = Math.min(userMessages.length, assistantMessages.length);
-        for (let i = 0; i < completePairs; i++) {
-          const item = {
-            query: userMessages[i].innerText,
-            answer: assistantMessages[i].innerHTML,
-            sources: []
-          };
-          const container = assistantMessages[i].closest('.assistant-message');
-          if (container) {
-            const sourcesList = container.querySelectorAll('.source-info-container li');
-            sourcesList.forEach(source => {
-              item.sources.push(source.innerText);
-            });
-          }
-          conversationItems.push(item);
-        }
+        const messages = chatContainer.querySelectorAll('.message-wrapper:not(:has(pre))');
+        let currentItem = null;
+        messages.forEach(wrapper => {
+            const contentElement = wrapper.querySelector('.message-content');
+            if (!contentElement) return;
+            if (wrapper.classList.contains('human-message')) {
+                currentItem = { query: contentElement.innerText, answer: null, sources: [] };
+            } else if (wrapper.classList.contains('assistant-message') && currentItem && currentItem.answer === null) {
+                currentItem.answer = contentElement.innerHTML;
+                const sourcesList = wrapper.querySelectorAll('.source-info li');
+                sourcesList.forEach(li => currentItem.sources.push(li.innerText));
+                conversationItems.push(currentItem);
+                currentItem = null;
+            }
+        });
         localStorage.setItem("conversationHistory", JSON.stringify(conversationItems));
       }
 
-      // Load conversation history from localStorage (should be empty after clearing)
       function loadConversationHistory() {
         const storedHistory = localStorage.getItem("conversationHistory");
         if (storedHistory) {
           try {
             const history = JSON.parse(storedHistory);
+            const welcomeScreen = document.getElementById('welcomeScreen');
+             if (history.length > 0 && welcomeScreen) {
+                welcomeScreen.classList.add('hidden');
+             }
             history.forEach(item => {
-              // Append user message
               const userMessageWrapper = document.createElement('div');
               userMessageWrapper.className = 'message-wrapper human-message';
               userMessageWrapper.innerHTML = `
-                <div class="message">
-                  <div class="message-header">
-                    <div class="avatar human">U</div>
-                    <div>You</div>
-                  </div>
-                  <div class="message-content">${item.query}</div>
-                  <div class="message-actions">
-                    <button class="action-button copy-btn" title="Copy message">
-                      <i class="far fa-copy"></i>
-                    </button>
-                  </div>
-                </div>
+                <div class="message"> <div class="message-header"> <div class="avatar human">U</div> <div>You</div> </div> <div class="message-content">${escapeHtml(item.query)}</div> <div class="message-actions"> <button class="action-button copy-btn" title="Copy message"> <i class="far fa-copy"></i> </button> </div> </div>
               `;
               chatContainer.appendChild(userMessageWrapper);
-
-              // Append assistant message
-              const assistantMessageWrapper = document.createElement('div');
-              assistantMessageWrapper.className = 'message-wrapper assistant-message';
-              let sourcesHTML = '';
-              if (item.sources && item.sources.length > 0) {
-                sourcesHTML = `
-                  <div class="source-info-container">
-                    <button class="source-info-button" onclick="toggleSources(this)">
-                      <i class="fas fa-angle-down icon"></i>
-                      <span>View Sources</span>
-                      <span class="source-count">(${item.sources.length})</span>
-                    </button>
-                    <div class="source-info">
-                      <strong>Sources:</strong>
-                      <ul>
-                        ${item.sources.map(src => `<li>${src}</li>`).join('')}
-                      </ul>
-                    </div>
-                  </div>
-                `;
-              }
-              assistantMessageWrapper.innerHTML = `
-                <div class="message">
-                  <div class="message-header">
-                    <div class="avatar assistant">NC</div>
-                    <div>NewCold Assistant</div>
-                  </div>
-                  <div class="message-content">${item.answer}</div>
-                  ${sourcesHTML}
-                  <div class="message-actions">
-                    <button class="action-button copy-btn" title="Copy message">
-                      <i class="far fa-copy"></i>
-                    </button>
-                    <button class="action-button like-btn" title="Like">
-                      <i class="far fa-thumbs-up"></i>
-                    </button>
-                    <button class="action-button dislike-btn" title="Dislike">
-                      <i class="far fa-thumbs-down"></i>
-                    </button>
-                  </div>
-                </div>
-              `;
-              chatContainer.appendChild(assistantMessageWrapper);
+              displayAssistantMessage(item.answer, item.sources);
             });
           } catch (e) {
             console.error("Error loading conversation history:", e);
+            localStorage.removeItem("conversationHistory");
           }
         }
       }
 
-      // Show thinking animation with sequential status text
-      function showThinking() {
+      function showThinking(userMessage) {
+        console.log("showThinking called.");
         const welcomeScreen = document.getElementById('welcomeScreen');
         if (welcomeScreen && !welcomeScreen.classList.contains('hidden')) {
           welcomeScreen.classList.add('hidden');
         }
-        const userMessage = userInput.value.trim();
         if (userMessage) {
           const messageWrapper = document.createElement('div');
           messageWrapper.className = 'message-wrapper human-message';
           messageWrapper.innerHTML = `
-            <div class="message">
-              <div class="message-header">
-                <div class="avatar human">U</div>
-                <div>You</div>
-              </div>
-              <div class="message-content">${userMessage}</div>
-              <div class="message-actions">
-                <button class="action-button copy-btn" title="Copy message">
-                  <i class="far fa-copy"></i>
-                </button>
-              </div>
-            </div>
+            <div class="message"> <div class="message-header"> <div class="avatar human">U</div> <div>You</div> </div> <div class="message-content">${escapeHtml(userMessage)}</div> <div class="message-actions"> <button class="action-button copy-btn" title="Copy message"> <i class="far fa-copy"></i> </button> </div> </div>
           `;
           chatContainer.appendChild(messageWrapper);
         }
@@ -803,66 +847,55 @@
         thinkingWrapper.className = 'message-wrapper assistant-message';
         thinkingWrapper.id = 'thinkingAnimation';
         thinkingWrapper.innerHTML = `
-          <div class="message">
-            <div class="message-header">
-              <div class="avatar assistant">NC</div>
-              <div>NewCold Assistant</div>
-            </div>
-            <div class="thinking-animation">
-              <div class="thinking-dot"></div>
-              <div class="thinking-dot"></div>
-              <div class="thinking-dot"></div>
-            </div>
-            <div id="thinkingText" class="thinking-text"></div>
-          </div>
+          <div class="message"> <div class="message-header"> <div class="avatar assistant">NC</div> <div>NewCold Assistant</div> </div> <div class="thinking-animation"> <div class="thinking-dot"></div> <div class="thinking-dot"></div> <div class="thinking-dot"></div> </div> <div id="thinkingText" class="thinking-text"></div> </div>
         `;
         chatContainer.appendChild(thinkingWrapper);
         scrollToBottom();
         const thinkingText = document.getElementById('thinkingText');
         let stepIndex = 0;
-        const processingSteps = [
-          "Analyzing your query...",
-          "Searching legal documents...",
-          "Reviewing relevant contracts...",
-          "Identifying applicable clauses...",
-          "Preparing legal insights..."
-        ];
+        const processingSteps = [ "Analyzing your query...", "Searching legal documents...", "Reviewing relevant contracts...", "Identifying applicable clauses...", "Preparing legal insights..." ];
         function showNextStep() {
+          const currentThinkingEl = document.getElementById("thinkingAnimation");
+          if (!currentThinkingEl) return;
           if (stepIndex < processingSteps.length) {
             thinkingText.innerText = processingSteps[stepIndex];
             thinkingText.classList.add('visible');
             stepIndex++;
             setTimeout(() => {
               thinkingText.classList.remove('visible');
-              showNextStep();
+              if (document.getElementById("thinkingAnimation")) { showNextStep(); }
             }, 3000);
           }
         }
         showNextStep();
         userInput.disabled = true;
         sendButton.disabled = true;
+        console.log("showThinking: Input and button disabled.");
       }
 
-      // Scroll to bottom of chat container
-      function scrollToBottom() {
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
+      function scrollToBottom() { setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 0); }
 
-      // Delegate copy button handler
       document.addEventListener('click', function(e) {
         if (e.target.closest('.copy-btn')) {
           const button = e.target.closest('.copy-btn');
-          const messageContent = button.closest('.message').querySelector('.message-content').innerText;
-          navigator.clipboard.writeText(messageContent).then(() => {
-            const originalIcon = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => {
-              button.innerHTML = originalIcon;
-            }, 1000);
-          });
+          let messageContentElement = button.closest('.message').querySelector('.message-content');
+          let textToCopy = '';
+          if (messageContentElement) {
+              const preElement = messageContentElement.querySelector('pre');
+              if (preElement) { textToCopy = preElement.innerText; }
+              else { const tempDiv = document.createElement('div'); tempDiv.innerHTML = messageContentElement.innerHTML; textToCopy = tempDiv.textContent || tempDiv.innerText || ""; }
+          }
+          if (textToCopy) {
+              navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalIcon = button.innerHTML; button.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => { button.innerHTML = originalIcon; }, 1000);
+              }).catch(err => { console.error('Failed to copy text: ', err); });
+          }
         }
       });
-    });
+
+      function escapeHtml(unsafe) { if (typeof unsafe !== 'string') return unsafe; const div = document.createElement('div'); div.textContent = unsafe; return div.innerHTML; }
+
+    }); // End DOMContentLoaded
 
     // Global function to toggle source information
     function toggleSources(button) {
