@@ -25,7 +25,7 @@ SPLADE_DOCS_FILENAME = "splade_docs.pkl"    # Filename for the list of Document 
 # --- Core Model Settings ---
 
 # Embedding Model (for FAISS - Dense Retrieval)
-EMBEDDING_MODEL_NAME = "jinaai/jina-embeddings-v3"
+EMBEDDING_MODEL_NAME = "Alibaba-NLP/gte-multilingual-base"
 EMBEDDING_TRUST_REMOTE_CODE = True
 # EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2" # Alternative smaller model
 
@@ -53,10 +53,10 @@ MAX_TOKENS_THRESHOLD = 350 # Max words before hierarchical parsing is triggered
 # --- Retrieval Settings ---
 # Configure FAISS retriever type and parameters (Dense Retrieval)
 RETRIEVAL_TYPE = "similarity" # Using top-k for the dense part of hybrid search
-TOP_K = 25 # How many results to initially get from FAISS
+TOP_K = 100 # How many results to initially get from FAISS
 
 # --- NEW: SPLADE Top-N (Sparse Retrieval) ---
-SPLADE_TOP_N = 25 # How many results to initially get from SPLADE
+SPLADE_TOP_N = 100 # How many results to initially get from SPLADE
 
 # --- REMOVED: BM25 Top-N ---
 # BM25_TOP_N = 50
@@ -65,9 +65,9 @@ SPLADE_TOP_N = 25 # How many results to initially get from SPLADE
 RRF_K = 60 # Constant for Reciprocal Rank Fusion (default = 60)
 
 # --- Reranking Settings ---
-RERANKER_ENABLED = False # Set to False to disable reranking easily
-RERANKER_MODEL_NAME = "jinaai/jina-reranker-v2-base-multilingual"
-RERANK_CANDIDATE_POOL_SIZE = 50 # How many candidates from RRF to feed into the reranker
+RERANKER_ENABLED = True # Set to False to disable reranking easily
+RERANKER_MODEL_NAME = "Alibaba-NLP/gte-reranker-modernbert-base"
+RERANK_CANDIDATE_POOL_SIZE = 200 # How many candidates from RRF to feed into the reranker
 PASS_2_SCORE_THRESHOLD = 0.3 # Optional threshold for comparative query Pass 2 selection
 
 # --- LLM Chain Input Limit Settings ---
@@ -75,12 +75,14 @@ PASS_2_SCORE_THRESHOLD = 0.3 # Optional threshold for comparative query Pass 2 s
 
 # --- NEW: Dynamic K Settings ---
 DYNAMIC_K_ENABLED = True # Set to True to enable dynamic K calculation
-# Threshold for combined score (0.0 to 1.0). Tune based on score distribution.
-DYNAMIC_K_SCORE_THRESHOLD = 0.4
+# Threshold for COMBINED scores (when reranker is ON)
+DYNAMIC_K_COMBINED_SCORE_THRESHOLD = 0.4
+# Threshold for RAW RRF scores (when reranker is OFF) - NEEDS TUNING!
+DYNAMIC_K_RRF_SCORE_THRESHOLD = 0.0000003 # <<< NEW: Example - VERY SMALL, adjust based on logs
 # Minimum number of chunks to send to LLM, even if few meet threshold.
-DYNAMIC_K_MIN_CHUNKS = 1   
+DYNAMIC_K_MIN_CHUNKS = 1
 # Maximum number of chunks to send to LLM, even if many meet threshold.
-DYNAMIC_K_MAX_CHUNKS = 12   
+DYNAMIC_K_MAX_CHUNKS = 12
 
 # Add Azure Checks
 if not AZURE_OPENAI_ENDPOINT:
@@ -106,10 +108,11 @@ if RERANKER_ENABLED:
 
 # Updated print statement for K value
 if DYNAMIC_K_ENABLED:
-    print(f"Dynamic K Enabled: True (Threshold={DYNAMIC_K_SCORE_THRESHOLD}, Min={DYNAMIC_K_MIN_CHUNKS}, Max={DYNAMIC_K_MAX_CHUNKS})")
+    # Determine which threshold is relevant based on RERANKER_ENABLED for logging clarity
+    active_threshold = DYNAMIC_K_COMBINED_SCORE_THRESHOLD if RERANKER_ENABLED else DYNAMIC_K_RRF_SCORE_THRESHOLD
+    threshold_type = "CombinedScore" if RERANKER_ENABLED else "RRFScore"
+    print(f"Dynamic K Enabled: True ({threshold_type} Threshold={active_threshold}, Min={DYNAMIC_K_MIN_CHUNKS}, Max={DYNAMIC_K_MAX_CHUNKS})")
 else:
-    # If dynamic K is disabled, use DYNAMIC_K_MAX_CHUNKS as the fixed K value
-    # (which defaults to HYBRID_TOP_K if dynamic settings weren't imported)
     fixed_k_value = DYNAMIC_K_MAX_CHUNKS
     print(f"Dynamic K Enabled: False. Using Fixed K = {fixed_k_value}")
 

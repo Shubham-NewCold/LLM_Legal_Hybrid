@@ -1,8 +1,8 @@
 # routes.py
-import time # <<< ADDED IMPORT
+import time
 from flask import Blueprint, render_template, request, jsonify
-import langchain_utils.qa_chain as qa_module # Import the module
-from langchain_utils.qa_chain import get_detected_customer_names # Keep specific import if needed elsewhere
+import langchain_utils.qa_chain as qa_module
+from langchain_utils.qa_chain import get_detected_customer_names
 import markdown
 from langchain_core.callbacks.manager import CallbackManager
 try:
@@ -15,66 +15,30 @@ import re
 import sys
 import traceback
 import itertools
-import torch # Added torch
+import torch
 from langchain.chains.mapreduce import MapReduceDocumentsChain
 from langchain_core.documents import Document
 from typing import List, Tuple, Dict, Any, Set, Optional
 
 # --- Updated Config Imports ---
-try:
-    # Add dynamic K parameters if they are in config.py, otherwise use HYBRID_TOP_K as max
-    from config import (
-        RRF_K, PROJECT_NAME,
-        RERANKER_ENABLED, RERANK_CANDIDATE_POOL_SIZE,
-        PASS_2_SCORE_THRESHOLD,
-        SPLADE_TOP_N, TOP_K as FAISS_TOP_K, # <<< Added FAISS_TOP_K alias for clarity
-        # Dynamic K Params (Add these to config.py if using)
-        DYNAMIC_K_ENABLED, DYNAMIC_K_SCORE_THRESHOLD,
-        DYNAMIC_K_MIN_CHUNKS, DYNAMIC_K_MAX_CHUNKS
-    )
-    print("--- Imported Dynamic K settings from config ---")
-except ImportError:
-    print("--- WARN: Could not import Dynamic K settings from config.py. Using fixed HYBRID_TOP_K. ---")
-    # Set defaults if import fails for dynamic K
-    DYNAMIC_K_ENABLED = False
-    DYNAMIC_K_SCORE_THRESHOLD = 0.5 # Example threshold, tune this
-    DYNAMIC_K_MIN_CHUNKS = 5      # Example min, tune this
-    DYNAMIC_K_MAX_CHUNKS = 15     # Example max, tune this
-    # Import fixed K as fallback
-    try:
-        from config import HYBRID_TOP_K
-    except ImportError:
-        HYBRID_TOP_K = 12 # Absolute fallback
-
-    # Set max chunks based on whether dynamic K is enabled
-    if not DYNAMIC_K_ENABLED:
-        DYNAMIC_K_MAX_CHUNKS = HYBRID_TOP_K # Use fixed K as the max if dynamic is off
-
-# --- Other Config Imports ---
-try:
-    # Ensure FAISS_TOP_K is defined if not imported above
-    if 'FAISS_TOP_K' not in locals(): from config import TOP_K as FAISS_TOP_K
-
-    from config import ( RRF_K, PROJECT_NAME, RERANKER_ENABLED,
-                         RERANK_CANDIDATE_POOL_SIZE, PASS_2_SCORE_THRESHOLD, SPLADE_TOP_N )
-except ImportError as e:
-     print(f"WARN: Could not import required settings from config.py: {e}")
-     # Set defaults if import fails
-     RRF_K = 60
-     PROJECT_NAME = "default-project"
-     RERANKER_ENABLED = False
-     RERANK_CANDIDATE_POOL_SIZE = 50
-     PASS_2_SCORE_THRESHOLD = None
-     SPLADE_TOP_N = 50 # Default SPLADE top N
-     FAISS_TOP_K = 100 # Default FAISS top K
-     # Ensure HYBRID_TOP_K exists if dynamic K failed import
-     if 'HYBRID_TOP_K' not in locals(): HYBRID_TOP_K = 12
-     if not DYNAMIC_K_ENABLED: DYNAMIC_K_MAX_CHUNKS = HYBRID_TOP_K
+# Import necessary config values including the new RRF threshold
+from config import (
+    RRF_K, PROJECT_NAME,
+    RERANKER_ENABLED, RERANK_CANDIDATE_POOL_SIZE,
+    PASS_2_SCORE_THRESHOLD,
+    SPLADE_TOP_N, TOP_K as FAISS_TOP_K,
+    DYNAMIC_K_ENABLED,
+    DYNAMIC_K_COMBINED_SCORE_THRESHOLD, # Renamed threshold
+    DYNAMIC_K_RRF_SCORE_THRESHOLD,      # New threshold for RRF
+    DYNAMIC_K_MIN_CHUNKS, DYNAMIC_K_MAX_CHUNKS
+)
+print("--- Imported settings from config ---")
 
 
 main_blueprint = Blueprint("main", __name__)
 
 # --- Helpers (generate_keyword, get_customer_filter_keyword) (Unchanged) ---
+# [ ... Keep the generate_keyword and get_customer_filter_keyword functions exactly as they were ... ]
 def generate_keyword(customer_name):
     if not customer_name: return None
     name_cleaned = customer_name
@@ -147,7 +111,9 @@ def get_customer_filter_keyword(query) -> Tuple[Optional[str], List[str]]:
     return filter_name, list(set(found_original_names)) # Use set to ensure uniqueness
 # --- End Helper ---
 
+
 # --- RRF Function (Unchanged) ---
+# [ ... Keep the reciprocal_rank_fusion function exactly as it was ... ]
 def reciprocal_rank_fusion(
     results: List[List[Tuple[Document, float]]], k: int = RRF_K
 ) -> List[Tuple[Document, float]]:
@@ -160,53 +126,41 @@ def reciprocal_rank_fusion(
     fused_scores = {}
     doc_map = {} # Store doc objects by a unique key (metadata + hash)
 
-    # print(f"DEBUG [RRF]: Fusing {len(results)} result lists.") # Reduced verbosity
-
     for docs_with_scores in results:
         if not docs_with_scores:
-            # print("DEBUG [RRF]: Skipping empty result list.")
             continue
 
         for rank, item in enumerate(docs_with_scores):
             if not isinstance(item, tuple) or len(item) != 2:
-                # print(f"WARN [RRF]: Skipping invalid item format at rank {rank}: {item}")
                 continue
             doc, score = item
             if not isinstance(doc, Document):
-                 # print(f"WARN [RRF]: Skipping item with non-Document object at rank {rank}: {type(doc)}")
                  continue
 
-            # Create a unique key based on source, page, and content hash
             source = doc.metadata.get('source', 'UnknownSource')
             page = doc.metadata.get('page_number', 'UnknownPage')
             try: content_hash = hash(doc.page_content)
             except TypeError: content_hash = hash(str(doc.page_content)) # Fallback
             doc_key = f"{source}-{page}-{content_hash}"
 
-            # Store the document object if not seen before
             if doc_key not in doc_map: doc_map[doc_key] = doc
-
-            # Update the fused score using RRF formula
             if doc_key not in fused_scores: fused_scores[doc_key] = 0.0
             try: fused_scores[doc_key] += 1.0 / (rank + k)
             except ZeroDivisionError: print(f"WARN [RRF]: Encountered rank 0 and k=0? Skipping item {doc_key}")
 
-    # Sort documents based on their final fused scores
     reranked_results_keys = sorted(fused_scores.keys(), key=fused_scores.get, reverse=True)
-
-    # Create the final list of (Document, fused_score) tuples
     reranked_results = []
     for key in reranked_results_keys:
         if key in doc_map:
              fused_score = fused_scores.get(key, 0.0)
              reranked_results.append((doc_map[key], float(fused_score)))
-        # else: print(f"WARN [RRF]: Doc key '{key}' found in fused_scores but not in doc_map. Skipping.")
 
-    # print(f"DEBUG [RRF]: Fusion produced {len(reranked_results)} unique ranked documents.")
     return reranked_results
 # --- End RRF ---
 
+
 # --- Function to format docs for debug output (Unchanged) ---
+# [ ... Keep the format_docs_for_debug function exactly as it was ... ]
 def format_docs_for_debug(docs: List[Document], scores: List[float] = None) -> List[Dict[str, Any]]:
     """Helper to format documents and optional scores for JSON output."""
     output = []
@@ -227,7 +181,9 @@ def format_docs_for_debug(docs: List[Document], scores: List[float] = None) -> L
     return output
 # --- End Format Helper ---
 
-# --- UPDATED Smart Selection Function ---
+
+# --- UPDATED Smart Selection Function (Unchanged) ---
+# [ ... Keep the select_smart_chunks function exactly as it was ... ]
 def select_smart_chunks(
     ranked_docs_with_scores: List[Tuple[Document, float]], # Input now contains combined scores
     target_customers: List[str],
@@ -240,121 +196,83 @@ def select_smart_chunks(
     Prioritizes overall best combined scores first, then uses customer-specific lists for round-robin.
     """
     if not ranked_docs_with_scores:
-        # print("DEBUG [SelectChunks]: No ranked documents provided.")
         return []
 
-    target_customer_list = sorted(list(set(target_customers))) # Ensure unique and consistent order
+    target_customer_list = sorted(list(set(target_customers)))
     is_comparative = len(target_customer_list) > 1
 
-    # This function should only be called for comparative queries now.
     if not is_comparative:
          print("ERROR [SelectChunks]: This function should only be called for comparative queries.")
-         # Fallback: return top N overall, but this indicates a logic error in the calling code.
          selected_docs_list = [doc for doc, score in ranked_docs_with_scores[:max_chunks]]
          return selected_docs_list
 
-    # --- Comparative Case ---
     score_type_label = "CombinedScore" if reranking_performed else "RRFScore"
-    # print(f"DEBUG [SelectChunks]: Comparative query. Selecting smart chunks. Targets: {target_customer_list}, Max: {max_chunks}, Min per target: {min_docs_per_target}, ScoreType: {score_type_label}")
-
     selected_docs_list: List[Document] = []
     customer_doc_counts: Dict[str, int] = {cust: 0 for cust in target_customer_list}
-    docs_added_keys: Set[str] = set() # Track added docs using unique key (source-page-hash)
+    docs_added_keys: Set[str] = set()
 
-    # --- Pass 1: Ensure minimum coverage using the globally sorted list (by combined score) ---
-    # print(f"  DEBUG [SelectChunks]: Pass 1 - Ensuring up to {min_docs_per_target} docs per target using globally sorted list...")
+    # Pass 1
     for doc, score in ranked_docs_with_scores:
         if len(selected_docs_list) >= max_chunks: break
-
         customer = doc.metadata.get('customer', 'Unknown Customer')
         if customer in target_customer_list and customer_doc_counts[customer] < min_docs_per_target:
-            # --- Generate unique key for the document ---
             source = doc.metadata.get('source', 'UnknownSource')
             page = doc.metadata.get('page_number', 'UnknownPage')
             try: content_hash = hash(doc.page_content)
             except TypeError: content_hash = hash(str(doc.page_content))
             doc_key = f"{source}-{page}-{content_hash}"
-            # --- End key generation ---
-
             if doc_key not in docs_added_keys:
                 selected_docs_list.append(doc)
                 docs_added_keys.add(doc_key)
                 customer_doc_counts[customer] += 1
-                # print(f"    DEBUG [SelectChunks P1]: Added doc for '{customer}' (Overall Rank: {len(selected_docs_list)}, {score_type_label}: {score:.4f})")
-
-
-        # Check if minimum is met for all targets
         all_targets_met_min = all(count >= min_docs_per_target for count in customer_doc_counts.values())
         if all_targets_met_min:
-             # print(f"  DEBUG [SelectChunks]: Minimum doc count ({min_docs_per_target}) met for all targets in Pass 1.")
-             break # Stop Pass 1 once minimums are met
+             break
 
-    # print(f"  DEBUG [SelectChunks]: Docs selected after Pass 1: {len(selected_docs_list)}")
-    # print(f"  DEBUG [SelectChunks]: Customer counts after Pass 1: {customer_doc_counts}")
-
-    # --- Pass 2: Fill remaining slots using Round-Robin on CUSTOMER-SPECIFIC sorted lists ---
+    # Pass 2
     if len(selected_docs_list) < max_chunks:
-        # print(f"  DEBUG [SelectChunks]: Pass 2 - Filling remaining {max_chunks - len(selected_docs_list)} slots using Round-Robin on customer-specific lists...")
-
-        # --- Create customer-specific lists, sorted by the combined score ---
         customer_specific_ranked_docs: Dict[str, List[Tuple[Document, float]]] = {cust: [] for cust in target_customer_list}
-        for doc, score in ranked_docs_with_scores: # Iterate through the globally sorted list again
+        for doc, score in ranked_docs_with_scores:
             customer = doc.metadata.get('customer', 'Unknown Customer')
             if customer in target_customer_list:
                 customer_specific_ranked_docs[customer].append((doc, score))
-        # Note: The lists within customer_specific_ranked_docs are already sorted because ranked_docs_with_scores was sorted.
 
         customer_next_candidate_index: Dict[str, int] = {cust: 0 for cust in target_customer_list}
         customer_cycle = itertools.cycle(target_customer_list)
         num_targets = len(target_customer_list)
-        attempts_since_last_add = 0 # To prevent infinite loops if no more docs are available
+        attempts_since_last_add = 0
 
         while len(selected_docs_list) < max_chunks and attempts_since_last_add < num_targets:
             current_customer = next(customer_cycle)
             customer_list = customer_specific_ranked_docs.get(current_customer, [])
             start_index = customer_next_candidate_index[current_customer]
-
             found_doc_for_customer = False
             for i in range(start_index, len(customer_list)):
                 doc, score = customer_list[i]
-
-                # --- Generate unique key for the document ---
                 source = doc.metadata.get('source', 'UnknownSource')
                 page = doc.metadata.get('page_number', 'UnknownPage')
                 try: content_hash = hash(doc.page_content)
                 except TypeError: content_hash = hash(str(doc.page_content))
                 doc_key = f"{source}-{page}-{content_hash}"
-                # --- End key generation ---
-
                 if doc_key not in docs_added_keys:
                     selected_docs_list.append(doc)
                     docs_added_keys.add(doc_key)
-                    customer_next_candidate_index[current_customer] = i + 1 # Move index for this customer
+                    customer_next_candidate_index[current_customer] = i + 1
                     found_doc_for_customer = True
-                    attempts_since_last_add = 0 # Reset counter
-                    # print(f"    DEBUG [SelectChunks RR]: Added doc via Pass 2 for '{current_customer}' (Overall Rank: {len(selected_docs_list)}, {score_type_label}: {score:.4f})")
-                    break # Move to the next customer in the cycle
-
+                    attempts_since_last_add = 0
+                    break
             if not found_doc_for_customer:
-                # No more unique docs found for this customer in their list
-                customer_next_candidate_index[current_customer] = len(customer_list) # Mark as exhausted
+                customer_next_candidate_index[current_customer] = len(customer_list)
                 attempts_since_last_add += 1
             else:
-                 # If we added a doc, check if we reached the max chunks
                  if len(selected_docs_list) >= max_chunks:
-                     break # Exit the while loop
-
-        # Check if the loop exited because no more documents could be added
-        if attempts_since_last_add >= num_targets and len(selected_docs_list) < max_chunks:
-            # print(f"  DEBUG [SelectChunks RR]: Pass 2 stopped early. No more eligible unique documents found for any target customer.")
-            pass
-
-    # print(f"DEBUG [SelectChunks]: Final selected chunk count: {len(selected_docs_list)}")
+                     break
     return selected_docs_list
 # --- End Smart Selection ---
 
 
-# --- NEW: SPLADE Helper Functions ---
+# --- NEW: SPLADE Helper Functions (Unchanged) ---
+# [ ... Keep the get_splade_vector and search_splade functions exactly as they were ... ]
 def get_splade_vector(text: str, model, tokenizer) -> Dict[int, float]:
     """Generates a sparse vector for a single text using SPLADE."""
     device = model.device
@@ -381,27 +299,20 @@ def search_splade(
     scores = []
     for i, doc_vec in enumerate(doc_vectors):
         score = 0.0
-        # Calculate dot product efficiently
         for token_id, query_weight in query_vector.items():
             if token_id in doc_vec:
                 score += query_weight * doc_vec[token_id]
-        if score > 0: # Only consider positive scores
-             scores.append((score, i)) # Store score and original index
+        if score > 0:
+             scores.append((score, i))
 
-    # Sort by score descending
     scores.sort(key=lambda x: x[0], reverse=True)
-
-    # Get top N results
     results = []
-    # Ensure index is within bounds of the provided documents list
     valid_indices = {i for i in range(len(documents))}
     for score, index in scores[:top_n]:
         if index in valid_indices:
              results.append((documents[index], score))
         else:
              print(f"WARN [SearchSPLADE]: Index {index} out of bounds for documents list (len={len(documents)}). Skipping.")
-
-
     return results
 # --- End SPLADE Helpers ---
 
@@ -414,7 +325,7 @@ def home():
     email_for_template = ""
 
     if request.method == "POST":
-        request_start_time = time.time() # <<< START Request Timer
+        request_start_time = time.time()
 
         debug_retrieval = False
         user_query = ""
@@ -440,19 +351,18 @@ def home():
 
         answer = "An error occurred processing your request."
         sources = []
-        docs_before_rerank: List[Tuple[Document, float]] = [] # Store RRF results for debug
+        docs_before_rerank: List[Tuple[Document, float]] = []
 
-        print(f"\n--- NEW REQUEST ({time.strftime('%Y-%m-%d %H:%M:%S')}) ---") # <<< Added Timestamp
+        print(f"\n--- NEW REQUEST ({time.strftime('%Y-%m-%d %H:%M:%S')}) ---")
         print(f"User Query: {user_query}")
         print(f"User Email: {user_email}")
         print(f"Debug Retrieval Mode: {debug_retrieval}")
         reranker_loaded = hasattr(qa_module, 'reranker_model') and qa_module.reranker_model is not None
-        # --- Updated Readiness Check ---
         splade_ready = qa_module.splade_model is not None and qa_module.splade_tokenizer is not None and qa_module.splade_vectors is not None and qa_module.splade_docs is not None
         print(f"Reranker Enabled in Config: {RERANKER_ENABLED}")
         print(f"Reranker Model Loaded: {reranker_loaded}")
-        print(f"SPLADE Model/Data Loaded: {splade_ready}") # Added SPLADE check
-        should_rerank = RERANKER_ENABLED and reranker_loaded
+        print(f"SPLADE Model/Data Loaded: {splade_ready}")
+        should_rerank = RERANKER_ENABLED and reranker_loaded # Determine if reranking should happen
 
         if not user_query:
             answer = "Please enter a valid query."
@@ -462,17 +372,18 @@ def home():
                 answer_for_template = answer; sources_for_template = sources
                 return render_template("index.html", query=query_for_template, answer=answer_for_template, sources=sources_for_template, email=email_for_template), 400
 
-        # --- Updated Check for necessary components ---
         core_components_missing = (
             qa_module.retriever is None or
-            not splade_ready or # Check if SPLADE is ready instead of BM25
+            not splade_ready or
             qa_module.map_reduce_chain is None
         )
+        # Check if reranker is enabled BUT failed to load
         reranker_missing_when_enabled = (RERANKER_ENABLED and not reranker_loaded)
+
         if core_components_missing or reranker_missing_when_enabled:
              error_details = []
              if qa_module.retriever is None: error_details.append("FAISS retriever missing.")
-             if not splade_ready: error_details.append("SPLADE components missing.") # Updated error
+             if not splade_ready: error_details.append("SPLADE components missing.")
              if qa_module.map_reduce_chain is None: error_details.append("MapReduce chain missing.")
              if reranker_missing_when_enabled: error_details.append("Reranker enabled but model failed to load.")
              error_msg = f"System not ready. Details: {' '.join(error_details)} Please check initialization and config."
@@ -482,82 +393,55 @@ def home():
                  answer_for_template = f"Error: {error_msg}"; sources_for_template = None
                  return render_template("index.html", query=query_for_template, answer=answer_for_template, sources=sources_for_template, email=email_for_template), 500
 
-        # Setup callbacks
         try:
             tracer = EmailLangChainTracer(project_name=PROJECT_NAME)
             callback_manager = CallbackManager([tracer])
-            # print(f"DEBUG [EmailTracer]: Initialized for project '{PROJECT_NAME}'.")
         except NameError:
-             # print("WARN: EmailLangChainTracer class not available. Using empty CallbackManager.")
              callback_manager = CallbackManager([])
         except Exception as e:
             print(f"Error initializing tracer: {e}")
             callback_manager = CallbackManager([])
 
-        # --- Get filter name AND target customer list (Unchanged) ---
         filter_customer_name, target_customers_in_query = get_customer_filter_keyword(user_query)
-        # print(f"DEBUG: Customer filter identified: {filter_customer_name}")
-        # print(f"DEBUG: Target customers in query: {target_customers_in_query}")
 
-        # <<< START TIMING BLOCK >>>
         t_start_pipeline = time.time()
-        t_last = t_start_pipeline # Initialize last timestamp
+        t_last = t_start_pipeline
 
         try:
             # --- HYBRID SEARCH PIPELINE ---
 
             # 1. Dense Retrieval (FAISS)
-            # print(f"DEBUG: Retrieving documents via FAISS ({qa_module.RETRIEVAL_TYPE})...")
-            dense_docs: List[Document] = []
-            dense_scores_for_debug: List[float] = []
+            # [ ... FAISS retrieval logic ... ]
             dense_results_for_rrf: List[Tuple[Document, float]] = []
             try:
-                # print(f"DEBUG: Using retriever.invoke() for FAISS (type: {qa_module.RETRIEVAL_TYPE}).")
                 retrieved_dense_docs = qa_module.retriever.invoke( user_query, config={"callbacks": callback_manager} )
                 if retrieved_dense_docs and isinstance(retrieved_dense_docs[0], tuple) and len(retrieved_dense_docs[0]) == 2:
                      dense_docs_with_scores = retrieved_dense_docs
-                     # print("DEBUG: FAISS retriever returned docs with scores.")
                 elif retrieved_dense_docs and isinstance(retrieved_dense_docs[0], Document):
                      dense_docs_with_scores = [(doc, 1.0) for doc in retrieved_dense_docs]
-                     # print("DEBUG: FAISS retriever returned only docs, assigning dummy scores for RRF.")
                 else: dense_docs_with_scores = []
-                dense_docs = [doc for doc, score in dense_docs_with_scores]
-                dense_scores_for_debug = [score for doc, score in dense_docs_with_scores]
                 dense_results_for_rrf = dense_docs_with_scores
-                # print(f"DEBUG: FAISS retrieved {len(dense_docs)} documents.")
             except Exception as faiss_err:
                  print(f"ERROR during FAISS retrieval: {faiss_err}"); traceback.print_exc()
-                 dense_docs, dense_scores_for_debug, dense_results_for_rrf = [], [], []
-            t_now = time.time(); print(f"DEBUG Timing: Dense Retrieval (FAISS k={FAISS_TOP_K}) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 1
+                 dense_results_for_rrf = []
+            t_now = time.time(); print(f"DEBUG Timing: Dense Retrieval (FAISS k={FAISS_TOP_K}) took {t_now-t_last:.4f}s"); t_last = t_now
 
-            # --- 2. Sparse Retrieval (SPLADE) ---
-            # print(f"DEBUG: Retrieving documents via SPLADE (top_n={SPLADE_TOP_N})...")
+            # 2. Sparse Retrieval (SPLADE)
+            # [ ... SPLADE retrieval logic ... ]
             sparse_results_for_rrf: List[Tuple[Document, float]] = []
-            splade_docs_for_debug: List[Document] = []
-            splade_scores_for_debug: List[float] = []
             try:
                 if qa_module.splade_model and qa_module.splade_tokenizer and qa_module.splade_vectors and qa_module.splade_docs:
-                    query_sparse_vector = get_splade_vector(
-                        user_query, qa_module.splade_model, qa_module.splade_tokenizer
-                    )
-                    sparse_results_for_rrf = search_splade(
-                        query_sparse_vector,
-                        qa_module.splade_vectors,
-                        qa_module.splade_docs, # Pass the loaded docs corresponding to vectors
-                        SPLADE_TOP_N
-                    )
-                    splade_docs_for_debug = [doc for doc, score in sparse_results_for_rrf]
-                    splade_scores_for_debug = [score for doc, score in sparse_results_for_rrf]
-                    # print(f"DEBUG: SPLADE retrieved {len(splade_docs_for_debug)} documents.")
+                    query_sparse_vector = get_splade_vector(user_query, qa_module.splade_model, qa_module.splade_tokenizer)
+                    sparse_results_for_rrf = search_splade(query_sparse_vector, qa_module.splade_vectors, qa_module.splade_docs, SPLADE_TOP_N)
                 else:
                     print("WARN: SPLADE model/data not loaded. Skipping SPLADE retrieval.")
             except Exception as splade_err:
                 print(f"ERROR during SPLADE retrieval: {splade_err}"); traceback.print_exc()
-                sparse_results_for_rrf, splade_docs_for_debug, splade_scores_for_debug = [], [], []
-            t_now = time.time(); print(f"DEBUG Timing: Sparse Retrieval (SPLADE n={SPLADE_TOP_N}) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 2
+                sparse_results_for_rrf = []
+            t_now = time.time(); print(f"DEBUG Timing: Sparse Retrieval (SPLADE n={SPLADE_TOP_N}) took {t_now-t_last:.4f}s"); t_last = t_now
 
             # 3. Combine Results (RRF)
-            # print("DEBUG: Combining results using Reciprocal Rank Fusion...")
+            # [ ... RRF logic ... ]
             rrf_input_lists = []
             if dense_results_for_rrf: rrf_input_lists.append(dense_results_for_rrf)
             if sparse_results_for_rrf: rrf_input_lists.append(sparse_results_for_rrf)
@@ -566,28 +450,24 @@ def home():
                 fused_results = []
             else:
                 fused_results = reciprocal_rank_fusion(rrf_input_lists)
-            t_now = time.time(); print(f"DEBUG Timing: RRF Fusion (k={RRF_K}, produced {len(fused_results)} docs) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 3
+            t_now = time.time(); print(f"DEBUG Timing: RRF Fusion (k={RRF_K}, produced {len(fused_results)} docs) took {t_now-t_last:.4f}s"); t_last = t_now
 
-            # --- Get candidate pool ---
+
+            # --- Get candidate pool size ---
             candidate_pool_size = RERANK_CANDIDATE_POOL_SIZE if should_rerank else DYNAMIC_K_MAX_CHUNKS
             initial_hybrid_candidates = fused_results[:candidate_pool_size]
-            docs_before_rerank = initial_hybrid_candidates # Keep for debug
-            # print(f"DEBUG: Initial hybrid candidate pool size (for reranking or final selection): {len(initial_hybrid_candidates)}")
-
-            # --- DEBUG COMPARISON BLOCK ---
-            if debug_retrieval:
-                # ... (debug output code remains the same) ...
-                pass # Replace with your debug output code
+            docs_before_rerank = initial_hybrid_candidates
 
             # --- 4. Reranking & Combined Score Calculation ---
-            final_candidates_with_combined_scores: List[Tuple[Document, float]] = []
+            final_candidates_with_scores: List[Tuple[Document, float]] = [] # Renamed for clarity
             perform_rerank = should_rerank and initial_hybrid_candidates
 
-            # --- Weights for combining scores (Adjust as needed) ---
             W_RRF = 0.4
             W_RERANK = 0.6
 
             if perform_rerank:
+                # --- Reranking Logic (as before) ---
+                # [ ... Keep the reranking and score combination logic exactly as it was ... ]
                 reranker_model = qa_module.reranker_model
                 reranker_model_name = getattr(qa_module, 'RERANKER_MODEL_NAME', 'Unknown Reranker')
                 print(f"DEBUG: Reranking {len(initial_hybrid_candidates)} candidates using {reranker_model_name}...")
@@ -595,23 +475,18 @@ def home():
                     candidate_docs = [doc for doc, score in initial_hybrid_candidates]
                     doc_to_rrf_score = {id(doc): score for doc, score in initial_hybrid_candidates}
                     rerank_pairs = [[user_query, doc.page_content if isinstance(doc.page_content, str) else str(doc.page_content)] for doc in candidate_docs]
-
-                    rerank_scores_raw = reranker_model.predict(rerank_pairs, show_progress_bar=False) # Set show_progress_bar=True for long tasks
-
+                    rerank_scores_raw = reranker_model.predict(rerank_pairs, show_progress_bar=False)
                     docs_with_all_scores: List[Tuple[Document, float, float]] = []
                     for i, doc in enumerate(candidate_docs):
                         rrf_score = doc_to_rrf_score.get(id(doc), 0.0)
                         rerank_score = rerank_scores_raw[i]
                         docs_with_all_scores.append((doc, float(rrf_score), float(rerank_score)))
 
-                    # Normalize scores
+                    # Normalize and combine scores
                     if len(docs_with_all_scores) > 1:
-                        min_rrf = min(s[1] for s in docs_with_all_scores)
-                        max_rrf = max(s[1] for s in docs_with_all_scores)
-                        min_rerank = min(s[2] for s in docs_with_all_scores)
-                        max_rerank = max(s[2] for s in docs_with_all_scores)
-                        range_rrf = max_rrf - min_rrf
-                        range_rerank = max_rerank - min_rerank
+                        min_rrf = min(s[1] for s in docs_with_all_scores); max_rrf = max(s[1] for s in docs_with_all_scores)
+                        min_rerank = min(s[2] for s in docs_with_all_scores); max_rerank = max(s[2] for s in docs_with_all_scores)
+                        range_rrf = max_rrf - min_rrf; range_rerank = max_rerank - min_rerank
                         normalized_scores = []
                         for doc, rrf, rerank in docs_with_all_scores:
                             norm_rrf = (rrf - min_rrf) / range_rrf if range_rrf > 0 else 0.0
@@ -619,99 +494,101 @@ def home():
                             combined_score = (W_RRF * norm_rrf) + (W_RERANK * norm_rerank)
                             normalized_scores.append((doc, combined_score))
                     elif docs_with_all_scores:
-                         normalized_scores = [(docs_with_all_scores[0][0], docs_with_all_scores[0][2])]
+                         normalized_scores = [(docs_with_all_scores[0][0], docs_with_all_scores[0][2])] # Use rerank score if only one doc
                     else:
                          normalized_scores = []
 
                     normalized_scores.sort(key=lambda x: x[1], reverse=True)
-                    final_candidates_with_combined_scores = normalized_scores
-                    # print(f"DEBUG: Reranking & Score Combination complete. Produced {len(final_candidates_with_combined_scores)} ranked documents.")
-
+                    final_candidates_with_scores = normalized_scores # Assign combined scores
                 except Exception as rerank_err:
                     print(f"ERROR during reranking or score combination: {rerank_err}"); traceback.print_exc()
                     print("WARN: Falling back to using RRF results due to error.")
-                    final_candidates_with_combined_scores = sorted(initial_hybrid_candidates, key=lambda x: x[1], reverse=True)
-                    perform_rerank = False
-                t_now = time.time(); print(f"DEBUG Timing: Reranking (Pool={len(initial_hybrid_candidates)}) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 4 (Rerank)
+                    final_candidates_with_scores = sorted(initial_hybrid_candidates, key=lambda x: x[1], reverse=True) # Use RRF scores
+                    perform_rerank = False # Mark reranking as failed/skipped
+                t_now = time.time(); print(f"DEBUG Timing: Reranking (Pool={len(initial_hybrid_candidates)}) took {t_now-t_last:.4f}s"); t_last = t_now
             else:
-                # print("DEBUG: Reranking disabled or model not loaded. Using results from RRF.")
-                final_candidates_with_combined_scores = sorted(initial_hybrid_candidates, key=lambda x: x[1], reverse=True)
-                perform_rerank = False
-                print(f"DEBUG Timing: Reranking skipped.") # <<< Timing Point 4 (Skipped)
+                # Reranking is disabled or model not loaded - use RRF scores directly
+                final_candidates_with_scores = sorted(initial_hybrid_candidates, key=lambda x: x[1], reverse=True)
+                perform_rerank = False # Explicitly set to False
+                print(f"DEBUG Timing: Reranking skipped.")
+                # t_last remains unchanged
 
-            # --- <<<< DYNAMIC K LOGIC START >>>> ---
+            # --- <<<< MODIFIED DYNAMIC K LOGIC START (Option 1) >>>> ---
             # --- 5. Determine Candidate Pool for Dynamic K ---
+            # Filter candidates if it's a single-customer query
             candidates_for_dynamic_k = []
             is_single_customer_query = False
             if filter_customer_name and len(target_customers_in_query) == 1:
                 is_single_customer_query = True
-                # print(f"DEBUG: Filtering candidates for single customer: '{filter_customer_name}'")
                 customer_specific_candidates = [
-                    (doc, score) for doc, score in final_candidates_with_combined_scores
+                    (doc, score) for doc, score in final_candidates_with_scores # Use final scores (combined or RRF)
                     if doc.metadata.get('customer') == filter_customer_name
                 ]
-                # print(f"DEBUG: Found {len(customer_specific_candidates)} candidates for '{filter_customer_name}' after filtering.")
                 candidates_for_dynamic_k = customer_specific_candidates
             else:
-                # print("DEBUG: Using full candidate list for comparative/no-customer query.")
-                candidates_for_dynamic_k = final_candidates_with_combined_scores
+                # Use the full list (sorted by combined or RRF score)
+                candidates_for_dynamic_k = final_candidates_with_scores
                 is_single_customer_query = False
 
             # --- 6. Calculate Dynamic K ---
             dynamic_k = DYNAMIC_K_MAX_CHUNKS # Default to max
             if DYNAMIC_K_ENABLED:
-                # print(f"DEBUG: Calculating Dynamic K (Threshold={DYNAMIC_K_SCORE_THRESHOLD}, Min={DYNAMIC_K_MIN_CHUNKS}, Max={DYNAMIC_K_MAX_CHUNKS})...")
+                # Determine which threshold and score type to use
+                if perform_rerank: # Check if reranking actually happened
+                    threshold = DYNAMIC_K_COMBINED_SCORE_THRESHOLD # Use threshold for combined scores
+                    score_type = "CombinedScore"
+                else:
+                    threshold = DYNAMIC_K_RRF_SCORE_THRESHOLD # Use the RRF threshold
+                    score_type = "RRFScore"
+
+                print(f"DEBUG: Calculating Dynamic K using {score_type} (Threshold={threshold}, Min={DYNAMIC_K_MIN_CHUNKS}, Max={DYNAMIC_K_MAX_CHUNKS})...")
                 count_above_threshold = 0
+                # candidates_for_dynamic_k contains (doc, score) tuples
+                # score is either combined score or RRF score depending on perform_rerank
                 for doc, score in candidates_for_dynamic_k:
-                    if score >= DYNAMIC_K_SCORE_THRESHOLD:
+                    if score >= threshold:
                         count_above_threshold += 1
                     else:
+                        # Optimization: Since scores are sorted, we can stop early
                         break
                 dynamic_k = max(DYNAMIC_K_MIN_CHUNKS, count_above_threshold)
                 dynamic_k = min(dynamic_k, DYNAMIC_K_MAX_CHUNKS)
-                # print(f"DEBUG: Calculated Dynamic K = {dynamic_k} (Found {count_above_threshold} above threshold)")
+                print(f"DEBUG: Calculated Dynamic K = {dynamic_k} (Found {count_above_threshold} above threshold using {score_type})")
             else:
+                 # Dynamic K is disabled in config
                  dynamic_k = DYNAMIC_K_MAX_CHUNKS
-                 # print(f"DEBUG: Dynamic K disabled. Using fixed K = {dynamic_k}")
+                 print(f"DEBUG: Dynamic K disabled in config. Using fixed K = {dynamic_k}")
 
             # --- 7. Select Final Documents based on K ---
+            # This logic remains the same, using the calculated dynamic_k
             selected_docs_for_processing = []
             if is_single_customer_query:
-                # print(f"DEBUG [SelectChunks]: Single customer query. Selecting top {dynamic_k} from filtered list.")
                 selected_docs_for_processing = [doc for doc, score in candidates_for_dynamic_k[:dynamic_k]]
             elif len(target_customers_in_query) > 1: # Comparative query
                  selected_docs_for_processing = select_smart_chunks(
-                     ranked_docs_with_scores=candidates_for_dynamic_k,
+                     ranked_docs_with_scores=candidates_for_dynamic_k, # Pass candidates sorted by appropriate score
                      target_customers=target_customers_in_query,
                      max_chunks=dynamic_k,
-                     reranking_performed=perform_rerank
+                     reranking_performed=perform_rerank # Pass whether reranking happened
                  )
             else: # No specific customer detected
-                 # print(f"DEBUG [SelectChunks]: No customer detected. Selecting top {dynamic_k} overall by combined score.")
                  selected_docs_for_processing = [doc for doc, score in candidates_for_dynamic_k[:dynamic_k]]
 
-            # print(f"DEBUG [SelectChunks]: Final selected chunk count: {len(selected_docs_for_processing)}")
-            t_now = time.time(); print(f"DEBUG Timing: Dynamic K / Selection (Final K={dynamic_k}) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 5
-            # --- <<<< DYNAMIC K LOGIC END >>>> ---
-
-
-            # --- Log Selected Docs Metadata ---
-            # print(f"--- Selected Docs Metadata (Post Selection - Max {dynamic_k}) ---")
-            # ... (logging code remains the same) ...
-            # print("--- End Selected Docs Metadata ---")
+            t_now = time.time(); print(f"DEBUG Timing: Dynamic K / Selection (Final K={dynamic_k}) took {t_now-t_last:.4f}s"); t_last = t_now
+            # --- <<<< MODIFIED DYNAMIC K LOGIC END >>>> ---
 
 
             # --- Chain Execution ---
+            # [ ... Chain execution logic remains the same ... ]
             docs_to_process = selected_docs_for_processing
             if not docs_to_process:
                  if is_single_customer_query:
                      answer = f"Could not find relevant documents specifically for '{filter_customer_name}' matching your query."
-                 elif answer == "An error occurred processing your request.":
+                 elif not answer or answer == "An error occurred processing your request.":
                     answer = f"Could not find relevant documents for your query after selection (Limit: {dynamic_k} chunks)."
                  sources = []
-                 t_now = time.time(); print(f"DEBUG Timing: MapReduce Chain skipped (No docs)"); t_last = t_now # <<< Timing Point 6 (Skipped)
+                 t_now = time.time(); print(f"DEBUG Timing: MapReduce Chain skipped (No docs)"); t_last = t_now
             else:
-                # print(f"\nDEBUG: Prepending metadata to content for {len(docs_to_process)} documents...")
                 processed_docs_for_map = []
                 for doc in docs_to_process:
                     meta = doc.metadata if hasattr(doc, 'metadata') else {}
@@ -720,7 +597,8 @@ def home():
                     content = doc.page_content if isinstance(doc.page_content, str) else str(doc.page_content)
                     cleaned_content = re.sub(r'^```[a-zA-Z]*\n', '', content, flags=re.MULTILINE)
                     cleaned_content = re.sub(r'\n```$', '', cleaned_content, flags=re.MULTILINE)
-                    processed_docs_for_map.append( Document(page_content=header + cleaned_content, metadata=meta) )
+                    processed_docs_for_map.append( Document(page_content=header + cleaned_content.strip(), metadata=meta) )
+
                 chain_input = { "input_documents": processed_docs_for_map, "question": user_query }
                 print(f"DEBUG: Invoking MapReduce chain with {len(processed_docs_for_map)} documents...")
                 try:
@@ -728,17 +606,18 @@ def home():
                     if user_email: chain_config["metadata"] = {"user_email": user_email}
                     result = qa_module.map_reduce_chain.invoke(chain_input, config=chain_config)
                     answer_raw = result.get("output_text", "Error: Could not generate answer from MapReduce chain.")
-                    # print("--- Raw LLM Response (Reduce Step) ---"); print(answer_raw); print("--- End Raw LLM Response ---")
                     answer = answer_raw
                 except Exception as e:
                      print(f"Error invoking MapReduce chain: {e}"); traceback.print_exc()
                      answer = "Error processing query via MapReduce chain."
-                t_now = time.time(); print(f"DEBUG Timing: MapReduce Chain ({len(processed_docs_for_map)} docs) took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 6 (Executed)
+                t_now = time.time(); print(f"DEBUG Timing: MapReduce Chain ({len(processed_docs_for_map)} docs) took {t_now-t_last:.4f}s"); t_last = t_now
 
-            # --- Source Generation ---
+
+            # --- Source Generation (Unchanged) ---
+            # [ ... Source generation logic remains the same ... ]
             sources = []
             seen_sources = set()
-            for doc in docs_to_process: # Use docs_to_process which contains the final selected docs
+            for doc in docs_to_process:
                 meta = doc.metadata if hasattr(doc, 'metadata') else {}
                 source_file = meta.get('source', 'Unknown Source')
                 page_num = meta.get('page_number', 'N/A')
@@ -755,14 +634,17 @@ def home():
                     sources.append(source_str)
                     seen_sources.add(source_key)
 
-            # --- Final Formatting ---
+
+            # --- Final Formatting (Unchanged) ---
+            # [ ... Final formatting logic remains the same ... ]
             is_error_answer = "Error:" in answer or "Could not find" in answer or "System not ready" in answer or "Found relevant documents, but none matched" in answer
             if not is_error_answer:
                 if not isinstance(answer, str): answer = str(answer)
                 try: answer = markdown.markdown(answer, extensions=['fenced_code', 'tables', 'nl2br'])
                 except Exception as md_err: print(f"WARN: Markdown conversion failed: {md_err}. Returning raw answer.")
             elif not isinstance(answer, str): answer = str(answer)
-            t_now = time.time(); print(f"DEBUG Timing: Source Gen/Formatting took {t_now-t_last:.4f}s"); t_last = t_now # <<< Timing Point 7
+            t_now = time.time(); print(f"DEBUG Timing: Source Gen/Formatting took {t_now-t_last:.4f}s"); t_last = t_now
+
 
         except Exception as e:
              print(f"Error during main processing block: {e}")
@@ -771,13 +653,11 @@ def home():
              sources = []
 
         # --- Return Response ---
-        # print(f"DEBUG: Final Answer Prepared:\n{answer[:500]}...")
-        # print(f"DEBUG: Final Sources Prepared: {sources}")
         answer_for_template = answer
         sources_for_template = sources
 
-        total_request_time = time.time() - request_start_time # <<< Calculate Total Time
-        print(f"--- Request Complete --- Total Time: {total_request_time:.4f}s ---") # <<< Log Total Time
+        total_request_time = time.time() - request_start_time
+        print(f"--- Request Complete --- Total Time: {total_request_time:.4f}s ---")
 
         if request.is_json: return jsonify({"answer": answer, "sources": sources})
         else: return render_template("index.html", query=query_for_template, answer=answer_for_template, sources=sources_for_template, email=email_for_template)
